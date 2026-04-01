@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="TrayApp/TrayApp.vcxproj" Id="9685e37b-a25e-44eb-9df8-09ac3f65b682" />
+</Solution>
