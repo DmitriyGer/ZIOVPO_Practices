@@ -13,8 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      - name: Configure CMake
+        run: cmake -A x64 -B build
 
-      - name: Build x64 Release
-        run: msbuild TrayApp/TrayApp.vcxproj /p:Configuration=Release /p:Platform=x64
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrayApp
+          path: build/Release/TrayApp.exe
