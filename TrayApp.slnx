@@ -5,4 +5,5 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="TrayApp/TrayApp.vcxproj" Id="9685e37b-a25e-44eb-9df8-09ac3f65b682" />
+  <Project Path="TrayService/TrayService.vcxproj" Id="60bdbf86-f929-4a49-b25d-e5cf8acf7b4b" />
 </Solution>

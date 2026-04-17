@@ -1,8 +1,7 @@
-name: Build TrayApp
+name: Build MSBuild
 
 on:
   push:
-    branches: ["main", "master"]
   pull_request:
 
 jobs:
@@ -10,17 +9,64 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -A x64 -B build
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-      - name: Build Release
-        run: cmake --build build --config Release --parallel
+      - name: Locate solution
+        id: solution
+        shell: pwsh
+        run: |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -File -Filter *.sln | Select-Object -First 1
+          if (-not $solution) {
+            throw "No .sln file found. MSBuild workflow requires a solution file."
+          }
 
-      - name: Upload artifact
+          "path=$($solution.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host "Using solution: $($solution.FullName)"
+
+      - name: Build Release x64
+        shell: pwsh
+        run: |
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+          New-Item -Path $outDir -ItemType Directory -Force | Out-Null
+
+          msbuild "${{ steps.solution.outputs.path }}" `
+            /m `
+            /nologo `
+            /verbosity:minimal `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:PlatformToolset=v143 `
+            /p:WindowsTargetPlatformVersion=10.0 `
+            /p:OutDir="$outDir\"
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts"
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+          New-Item -Path $artifactDir -ItemType Directory -Force | Out-Null
+
+          $trayApp = Join-Path $outDir "TrayApp.exe"
+          $trayService = Join-Path $outDir "TrayService.exe"
+
+          if (-not (Test-Path $trayApp)) {
+            throw "TrayApp.exe not found after build."
+          }
+
+          if (-not (Test-Path $trayService)) {
+            throw "TrayService.exe not found after build."
+          }
+
+          Copy-Item -Path $trayApp -Destination (Join-Path $artifactDir "TrayApp.exe") -Force
+          Copy-Item -Path $trayService -Destination (Join-Path $artifactDir "TrayService.exe") -Force
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: TrayApp
-          path: build/Release/TrayApp.exe
+          name: trayapp-release-x64
+          path: artifacts/
+          if-no-files-found: error

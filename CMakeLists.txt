@@ -9,6 +9,8 @@ set(SOURCES
     TrayApp/TrayApp.cpp
     TrayApp/TrayIconManager.cpp
     TrayApp/SingleInstanceGuard.cpp
+    Shared/ProcessUtils.cpp
+    Shared/ServiceUtils.cpp
     TrayApp/pch.cpp
     TrayApp/TrayApp.rc
 )
