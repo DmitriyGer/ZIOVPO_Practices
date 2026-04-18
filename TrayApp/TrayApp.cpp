@@ -19,7 +19,6 @@ namespace
     constexpr UINT kTrayIconCallbackMessage = WM_APP + 1;
     constexpr UINT kTrayOpenCommandId = IDM_TRAY_OPEN;
     constexpr DWORD kServiceStartTimeoutMs = 30000;
-    constexpr wchar_t kServiceParentProcessName[] = L"TrayService.exe";
 
     std::wstring GetSiblingBinaryPath(const wchar_t* binaryName)
     {
@@ -44,6 +43,29 @@ namespace
         siblingPath.erase(separatorPos + 1);
         siblingPath += binaryName;
         return siblingPath;
+    }
+
+    bool IsCurrentProcessChildOfService(const SERVICE_STATUS_PROCESS& serviceStatus)
+    {
+        if (serviceStatus.dwCurrentState != SERVICE_RUNNING || serviceStatus.dwProcessId == 0)
+        {
+            return false;
+        }
+
+        DWORD parentProcessId = 0;
+        if (!ProcessUtils::GetParentProcessId(GetCurrentProcessId(), parentProcessId))
+        {
+            return false;
+        }
+
+        return parentProcessId == serviceStatus.dwProcessId;
+    }
+
+    bool IsServiceRunning()
+    {
+        SERVICE_STATUS_PROCESS serviceStatus = {};
+        return ServiceUtils::QueryServiceStatus(ServiceUtils::kTrayServiceName, serviceStatus, nullptr)
+            && serviceStatus.dwCurrentState == SERVICE_RUNNING;
     }
 }
 
@@ -211,7 +233,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ShowMainWindowFromTray(hWnd);
             return 0;
         case IDM_EXIT:
-            if (TryStopServiceByRpc(hWnd))
+            if (TryStopServiceByRpc(hWnd) || !IsServiceRunning())
             {
                 g_isExitRequested = true;
                 DestroyWindow(hWnd);
@@ -324,7 +346,7 @@ bool ShouldTerminateAtStartup()
         return true;
     }
 
-    return !ProcessUtils::IsCurrentProcessParentNamed(kServiceParentProcessName);
+    return !IsCurrentProcessChildOfService(serviceStatus);
 }
 
 bool TryStopServiceByRpc(HWND ownerWindow)
@@ -332,6 +354,11 @@ bool TryStopServiceByRpc(HWND ownerWindow)
     if (RpcClient::RequestServiceStop())
     {
         return true;
+    }
+
+    if (!IsServiceRunning())
+    {
+        return false;
     }
 
     MessageBoxW(

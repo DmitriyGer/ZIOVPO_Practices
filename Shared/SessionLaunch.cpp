@@ -1,5 +1,6 @@
 #include "SessionLaunch.h"
 
+#include <tlhelp32.h>
 #include <userenv.h>
 #include <wtsapi32.h>
 
@@ -7,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #pragma comment(lib, "Userenv.lib")
@@ -125,6 +127,136 @@ namespace
                 ++it;
             }
         }
+    }
+
+    bool StringsEqualIgnoreCase(const wchar_t* left, const wchar_t* right)
+    {
+        if (left == nullptr || right == nullptr)
+        {
+            return false;
+        }
+
+        return CompareStringOrdinal(left, -1, right, -1, TRUE) == CSTR_EQUAL;
+    }
+
+    std::wstring ExtractFileName(const std::wstring& fullPath)
+    {
+        const size_t separatorPos = fullPath.find_last_of(L"\\/");
+        if (separatorPos == std::wstring::npos)
+        {
+            return fullPath;
+        }
+
+        return fullPath.substr(separatorPos + 1);
+    }
+
+    bool IsTrayAppProcessPath(HANDLE processHandle, const std::wstring& trayAppPath)
+    {
+        if (processHandle == nullptr || trayAppPath.empty())
+        {
+            return false;
+        }
+
+        std::wstring processPath(32768, L'\0');
+        DWORD processPathSize = static_cast<DWORD>(processPath.size());
+        if (!QueryFullProcessImageNameW(processHandle, 0, processPath.data(), &processPathSize))
+        {
+            return false;
+        }
+
+        processPath.resize(processPathSize);
+        return StringsEqualIgnoreCase(processPath.c_str(), trayAppPath.c_str());
+    }
+
+    void CollectUntrackedTrayAppProcesses(
+        const std::wstring& trayAppPath,
+        const std::wstring& trayAppFileName,
+        const std::unordered_set<DWORD>& trackedProcessIds,
+        std::vector<ProcessEntry>& processEntries)
+    {
+        if (trayAppPath.empty() || trayAppFileName.empty())
+        {
+            return;
+        }
+
+        HANDLE snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapshotHandle == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+
+        PROCESSENTRY32W processEntry = {};
+        processEntry.dwSize = sizeof(processEntry);
+
+        if (!Process32FirstW(snapshotHandle, &processEntry))
+        {
+            CloseHandle(snapshotHandle);
+            return;
+        }
+
+        do
+        {
+            const DWORD processId = processEntry.th32ProcessID;
+            if (processId == 0
+                || processId == GetCurrentProcessId()
+                || trackedProcessIds.find(processId) != trackedProcessIds.end())
+            {
+                continue;
+            }
+
+            if (!StringsEqualIgnoreCase(processEntry.szExeFile, trayAppFileName.c_str()))
+            {
+                continue;
+            }
+
+            DWORD sessionId = 0;
+            if (!ProcessIdToSessionId(processId, &sessionId) || sessionId == 0)
+            {
+                continue;
+            }
+
+            HANDLE processHandle = OpenProcess(
+                PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+                FALSE,
+                processId);
+            if (processHandle == nullptr)
+            {
+                continue;
+            }
+
+            if (!IsTrayAppProcessPath(processHandle, trayAppPath))
+            {
+                CloseHandle(processHandle);
+                continue;
+            }
+
+            ProcessEntry additionalEntry = {};
+            additionalEntry.processId = processId;
+            additionalEntry.processHandle = processHandle;
+            processEntries.push_back(additionalEntry);
+        } while (Process32NextW(snapshotHandle, &processEntry));
+
+        CloseHandle(snapshotHandle);
+    }
+
+    void TerminateProcessEntry(ProcessEntry& processEntry, DWORD waitTimeoutMs)
+    {
+        if (processEntry.processHandle == nullptr)
+        {
+            return;
+        }
+
+        if (WaitForSingleObject(processEntry.processHandle, 0) == WAIT_TIMEOUT)
+        {
+            if (TerminateProcess(processEntry.processHandle, 0))
+            {
+                WaitForSingleObject(processEntry.processHandle, waitTimeoutMs);
+            }
+        }
+
+        CloseHandle(processEntry.processHandle);
+        processEntry.processHandle = nullptr;
+        processEntry.processId = 0;
     }
 
     bool LaunchTrayAppInSession(DWORD sessionId, ProcessEntry& processEntry)
@@ -292,15 +424,26 @@ void SessionLaunch::LaunchInSession(DWORD sessionId)
 void SessionLaunch::TerminateLaunchedProcesses(DWORD waitTimeoutMs)
 {
     std::vector<ProcessEntry> launchedProcesses;
+    std::unordered_set<DWORD> trackedProcessIds;
+    std::wstring trayAppPath;
+    std::wstring trayAppFileName;
 
     {
         std::lock_guard<std::mutex> lock(g_stateMutex);
         CleanupExitedProcessesLocked();
 
         launchedProcesses.reserve(g_sessionProcesses.size());
+        trackedProcessIds.reserve(g_sessionProcesses.size());
+        trayAppPath = g_trayAppPath;
+        trayAppFileName = ExtractFileName(g_trayAppPath);
         for (auto& entry : g_sessionProcesses)
         {
             launchedProcesses.push_back(entry.second);
+            if (entry.second.processId != 0)
+            {
+                trackedProcessIds.insert(entry.second.processId);
+            }
+
             entry.second.processHandle = nullptr;
             entry.second.processId = 0;
         }
@@ -308,20 +451,15 @@ void SessionLaunch::TerminateLaunchedProcesses(DWORD waitTimeoutMs)
         g_sessionProcesses.clear();
     }
 
+    CollectUntrackedTrayAppProcesses(
+        trayAppPath,
+        trayAppFileName,
+        trackedProcessIds,
+        launchedProcesses);
+
     for (auto& process : launchedProcesses)
     {
-        if (process.processHandle == nullptr)
-        {
-            continue;
-        }
-
-        if (WaitForSingleObject(process.processHandle, 0) == WAIT_TIMEOUT)
-        {
-            TerminateProcess(process.processHandle, 0);
-            WaitForSingleObject(process.processHandle, waitTimeoutMs);
-        }
-
-        CloseHandle(process.processHandle);
+        TerminateProcessEntry(process, waitTimeoutMs);
     }
 }
 
