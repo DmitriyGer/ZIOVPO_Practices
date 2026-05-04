@@ -59,8 +59,67 @@ extern "C"{
 /* interface TrayRpcControl */
 /* [endpoint][unique][version][uuid] */ 
 
+typedef 
+enum TrayRpcStatusCode
+    {
+        TRAY_RPC_OK	= 0,
+        TRAY_RPC_INVALID_ARGUMENT	= 1,
+        TRAY_RPC_NOT_AUTHENTICATED	= 2,
+        TRAY_RPC_AUTH_FAILED	= 3,
+        TRAY_RPC_NETWORK_ERROR	= 4,
+        TRAY_RPC_SERVER_ERROR	= 5,
+        TRAY_RPC_NO_LICENSE	= 6,
+        TRAY_RPC_LICENSE_EXPIRED	= 7,
+        TRAY_RPC_LICENSE_BLOCKED	= 8
+    } 	TrayRpcStatusCode;
+
+typedef struct TrayRpcAuthInfo
+    {
+    int authenticated;
+    int hasUserId;
+    hyper userId;
+    wchar_t username[ 128 ];
+    } 	TrayRpcAuthInfo;
+
+typedef struct TrayRpcLicenseInfo
+    {
+    int hasLicense;
+    int blocked;
+    int expired;
+    int hasExpirationEpochSeconds;
+    hyper expirationEpochSeconds;
+    TrayRpcStatusCode errorCode;
+    } 	TrayRpcLicenseInfo;
+
 void StopService( 
     /* [in] */ handle_t hBinding);
+
+TrayRpcStatusCode GetAuthInfo( 
+    /* [in] */ handle_t hBinding,
+    /* [out] */ TrayRpcAuthInfo *authInfo);
+
+TrayRpcStatusCode Login( 
+    /* [in] */ handle_t hBinding,
+    /* [string][in] */ wchar_t *username,
+    /* [string][in] */ wchar_t *password,
+    /* [out] */ TrayRpcAuthInfo *authInfo);
+
+TrayRpcStatusCode Logout( 
+    /* [in] */ handle_t hBinding);
+
+TrayRpcStatusCode GetLicenseState( 
+    /* [in] */ handle_t hBinding,
+    /* [in] */ hyper productId,
+    /* [string][in] */ wchar_t *deviceMac,
+    /* [out] */ TrayRpcLicenseInfo *licenseInfo);
+
+TrayRpcStatusCode ActivateProduct( 
+    /* [in] */ handle_t hBinding,
+    /* [string][in] */ wchar_t *activationKey,
+    /* [in] */ hyper productId,
+    /* [string][in] */ wchar_t *deviceName,
+    /* [string][in] */ wchar_t *deviceMac,
+    /* [out] */ TrayRpcLicenseInfo *licenseInfo);
 
 
 

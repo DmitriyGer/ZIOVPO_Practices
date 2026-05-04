@@ -4,6 +4,7 @@
 #include <string>
 
 #include "../Shared/RpcServer.h"
+#include "../Shared/ServiceApiState.h"
 #include "../Shared/ServiceUtils.h"
 #include "../Shared/SessionLaunch.h"
 
@@ -158,6 +159,8 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
         return;
     }
 
+    ServiceApiState::Instance().Initialize();
+
     ReportServiceStatus(SERVICE_RUNNING, NO_ERROR, 0);
     SessionLaunch::LaunchInAllSessions();
 
@@ -171,6 +174,7 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
 
         if (waitResult == WAIT_TIMEOUT)
         {
+            ServiceApiState::Instance().Tick();
             SessionLaunch::LaunchInAllSessions();
             continue;
         }
@@ -180,6 +184,7 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
 
     ReportServiceStatus(SERVICE_STOP_PENDING, NO_ERROR, 5000);
     RpcServer::Stop();
+    ServiceApiState::Instance().Shutdown();
     SessionLaunch::TerminateLaunchedProcesses(kGuiTerminationTimeoutMs);
     SessionLaunch::Shutdown();
 

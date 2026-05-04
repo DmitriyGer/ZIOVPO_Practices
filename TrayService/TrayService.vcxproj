@@ -199,7 +199,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\Shared\ApiClient.cpp" />
+    <ClCompile Include="..\Shared\InMemorySession.cpp" />
     <ClCompile Include="..\Shared\RpcServer.cpp" />
+    <ClCompile Include="..\Shared\ServiceApiState.cpp" />
     <ClCompile Include="..\Shared\ServiceUtils.cpp" />
     <ClCompile Include="..\Shared\SessionLaunch.cpp" />
     <ClCompile Include="Generated\RpcContract_s.c" />

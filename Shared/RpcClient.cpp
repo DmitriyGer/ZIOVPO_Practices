@@ -4,52 +4,384 @@
 #include <rpcdce.h>
 #include <cstdlib>
 
+#include <chrono>
+#include <ctime>
+#include <string>
+
 #include "RpcContract.h"
 
 #pragma comment(lib, "Rpcrt4.lib")
 
-bool RpcClient::RequestServiceStop()
+namespace
 {
     constexpr wchar_t kRpcProtocolSequence[] = L"ncalrpc";
     constexpr wchar_t kRpcEndpoint[] = L"TrayServiceControlEndpoint";
 
-    RPC_WSTR stringBinding = nullptr;
-    RPC_BINDING_HANDLE bindingHandle = nullptr;
-    bool isSuccess = true;
+    class RpcBinding
+    {
+    public:
+        ~RpcBinding()
+        {
+            if (m_bindingHandle != nullptr)
+            {
+                RpcBindingFree(&m_bindingHandle);
+                m_bindingHandle = nullptr;
+            }
 
-    RPC_STATUS status = RpcStringBindingComposeW(
-        nullptr,
-        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcProtocolSequence)),
-        nullptr,
-        reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcEndpoint)),
-        nullptr,
-        &stringBinding);
-    if (status != RPC_S_OK)
+            if (m_stringBinding != nullptr)
+            {
+                RpcStringFreeW(&m_stringBinding);
+                m_stringBinding = nullptr;
+            }
+        }
+
+        bool Create()
+        {
+            RPC_STATUS status = RpcStringBindingComposeW(
+                nullptr,
+                reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcProtocolSequence)),
+                nullptr,
+                reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcEndpoint)),
+                nullptr,
+                &m_stringBinding);
+            if (status != RPC_S_OK)
+            {
+                return false;
+            }
+
+            status = RpcBindingFromStringBindingW(m_stringBinding, &m_bindingHandle);
+            return status == RPC_S_OK;
+        }
+
+        RPC_BINDING_HANDLE Get() const
+        {
+            return m_bindingHandle;
+        }
+
+    private:
+        RPC_WSTR m_stringBinding = nullptr;
+        RPC_BINDING_HANDLE m_bindingHandle = nullptr;
+    };
+
+    bool RpcCallStopService(RPC_BINDING_HANDLE bindingHandle)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            ::StopService(bindingHandle);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallGetAuthInfo(
+        RPC_BINDING_HANDLE bindingHandle,
+        TrayRpcAuthInfo* authInfo,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::GetAuthInfo(bindingHandle, authInfo);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallLogin(
+        RPC_BINDING_HANDLE bindingHandle,
+        wchar_t* username,
+        wchar_t* password,
+        TrayRpcAuthInfo* authInfo,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::Login(bindingHandle, username, password, authInfo);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallLogout(RPC_BINDING_HANDLE bindingHandle, TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::Logout(bindingHandle);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallGetLicenseState(
+        RPC_BINDING_HANDLE bindingHandle,
+        hyper productId,
+        wchar_t* deviceMac,
+        TrayRpcLicenseInfo* licenseInfo,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::GetLicenseState(bindingHandle, productId, deviceMac, licenseInfo);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallActivateProduct(
+        RPC_BINDING_HANDLE bindingHandle,
+        wchar_t* activationKey,
+        hyper productId,
+        wchar_t* deviceName,
+        wchar_t* deviceMac,
+        TrayRpcLicenseInfo* licenseInfo,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::ActivateProduct(
+                bindingHandle,
+                activationKey,
+                productId,
+                deviceName,
+                deviceMac,
+                licenseInfo);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    RpcClient::RpcStatusCode FromRpcStatus(TrayRpcStatusCode status)
+    {
+        switch (status)
+        {
+        case TRAY_RPC_OK:
+            return RpcClient::RpcStatusCode::Ok;
+        case TRAY_RPC_INVALID_ARGUMENT:
+            return RpcClient::RpcStatusCode::InvalidArgument;
+        case TRAY_RPC_NOT_AUTHENTICATED:
+            return RpcClient::RpcStatusCode::NotAuthenticated;
+        case TRAY_RPC_AUTH_FAILED:
+            return RpcClient::RpcStatusCode::AuthFailed;
+        case TRAY_RPC_NETWORK_ERROR:
+            return RpcClient::RpcStatusCode::NetworkError;
+        case TRAY_RPC_SERVER_ERROR:
+            return RpcClient::RpcStatusCode::ServerError;
+        case TRAY_RPC_NO_LICENSE:
+            return RpcClient::RpcStatusCode::NoLicense;
+        case TRAY_RPC_LICENSE_EXPIRED:
+            return RpcClient::RpcStatusCode::LicenseExpired;
+        case TRAY_RPC_LICENSE_BLOCKED:
+            return RpcClient::RpcStatusCode::LicenseBlocked;
+        default:
+            return RpcClient::RpcStatusCode::ServerError;
+        }
+    }
+
+    void FillAuthInfo(const TrayRpcAuthInfo& rpcAuthInfo, RpcClient::AuthInfo& authInfo)
+    {
+        authInfo = {};
+        authInfo.authenticated = rpcAuthInfo.authenticated != 0;
+        if (rpcAuthInfo.hasUserId != 0)
+        {
+            authInfo.userId = static_cast<long long>(rpcAuthInfo.userId);
+        }
+
+        authInfo.username = rpcAuthInfo.username;
+    }
+
+    void FillLicenseInfo(const TrayRpcLicenseInfo& rpcLicenseInfo, RpcClient::LicenseInfo& licenseInfo)
+    {
+        licenseInfo = {};
+        licenseInfo.hasLicense = rpcLicenseInfo.hasLicense != 0;
+        licenseInfo.blocked = rpcLicenseInfo.blocked != 0;
+        licenseInfo.expired = rpcLicenseInfo.expired != 0;
+        licenseInfo.errorCode = FromRpcStatus(rpcLicenseInfo.errorCode);
+
+        if (rpcLicenseInfo.hasExpirationEpochSeconds != 0)
+        {
+            const auto expiration =
+                std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcLicenseInfo.expirationEpochSeconds));
+            licenseInfo.expirationDateUtc = expiration;
+        }
+    }
+}
+
+bool RpcClient::RequestServiceStop()
+{
+    // Вызывает RPC-метод остановки службы.
+    RpcBinding binding;
+    if (!binding.Create())
     {
         return false;
     }
 
-    status = RpcBindingFromStringBindingW(stringBinding, &bindingHandle);
-    if (status != RPC_S_OK)
+    return RpcCallStopService(binding.Get());
+}
+
+RpcClient::RpcStatusCode RpcClient::GetCurrentAuthInfo(AuthInfo& authInfo)
+{
+    // Вызывает RPC-метод чтения текущей аутентификации.
+    RpcBinding binding;
+    if (!binding.Create())
     {
-        RpcStringFreeW(&stringBinding);
-        return false;
+        authInfo = {};
+        return RpcStatusCode::TransportError;
     }
 
-    RpcTryExcept
+    TrayRpcAuthInfo rpcAuthInfo = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallGetAuthInfo(binding.Get(), &rpcAuthInfo, &rpcStatus))
     {
-        ::StopService(bindingHandle);
+        authInfo = {};
+        return RpcStatusCode::TransportError;
     }
-    RpcExcept(1)
+
+    FillAuthInfo(rpcAuthInfo, authInfo);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::Login(const std::wstring& username, const std::wstring& password, AuthInfo& authInfo)
+{
+    // Вызывает RPC-метод login.
+    RpcBinding binding;
+    if (!binding.Create())
     {
-        isSuccess = false;
+        authInfo = {};
+        return RpcStatusCode::TransportError;
     }
-    RpcEndExcept;
 
-    RpcBindingFree(&bindingHandle);
-    RpcStringFreeW(&stringBinding);
+    TrayRpcAuthInfo rpcAuthInfo = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallLogin(
+            binding.Get(),
+            const_cast<wchar_t*>(username.c_str()),
+            const_cast<wchar_t*>(password.c_str()),
+            &rpcAuthInfo,
+            &rpcStatus))
+    {
+        authInfo = {};
+        return RpcStatusCode::TransportError;
+    }
 
-    return isSuccess;
+    FillAuthInfo(rpcAuthInfo, authInfo);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::Logout()
+{
+    // Вызывает RPC-метод logout.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallLogout(binding.Get(), &rpcStatus))
+    {
+        return RpcStatusCode::TransportError;
+    }
+
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::GetLicenseState(
+    long long productId,
+    const std::wstring& deviceMac,
+    LicenseInfo& licenseInfo)
+{
+    // Вызывает RPC-метод получения состояния лицензии.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        licenseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcLicenseInfo rpcLicenseInfo = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallGetLicenseState(
+            binding.Get(),
+            static_cast<hyper>(productId),
+            const_cast<wchar_t*>(deviceMac.c_str()),
+            &rpcLicenseInfo,
+            &rpcStatus))
+    {
+        licenseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillLicenseInfo(rpcLicenseInfo, licenseInfo);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::ActivateProduct(
+    const std::wstring& activationKey,
+    long long productId,
+    const std::wstring& deviceName,
+    const std::wstring& deviceMac,
+    LicenseInfo& licenseInfo)
+{
+    // Вызывает RPC-метод активации продукта.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        licenseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcLicenseInfo rpcLicenseInfo = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallActivateProduct(
+            binding.Get(),
+            const_cast<wchar_t*>(activationKey.c_str()),
+            static_cast<hyper>(productId),
+            const_cast<wchar_t*>(deviceName.c_str()),
+            const_cast<wchar_t*>(deviceMac.c_str()),
+            &rpcLicenseInfo,
+            &rpcStatus))
+    {
+        licenseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillLicenseInfo(rpcLicenseInfo, licenseInfo);
+    return FromRpcStatus(rpcStatus);
 }
 
 extern "C" void* __RPC_USER midl_user_allocate(size_t size)
