@@ -60,6 +60,15 @@ extern "C"{
 /* [endpoint][unique][version][uuid] */ 
 
 typedef 
+enum TrayRpcStopResult
+    {
+        TRAY_RPC_STOP_APPROVED	= 0,
+        TRAY_RPC_STOP_REJECTED	= 1,
+        TRAY_RPC_STOP_FAILED	= 2,
+        TRAY_RPC_STOP_CONFIRMATION_REQUIRED	= 3
+    } 	TrayRpcStopResult;
+
+typedef 
 enum TrayRpcStatusCode
     {
         TRAY_RPC_OK	= 0,
@@ -91,7 +100,10 @@ typedef struct TrayRpcLicenseInfo
     TrayRpcStatusCode errorCode;
     } 	TrayRpcLicenseInfo;
 
-void StopService( 
+TrayRpcStopResult StopService( 
+    /* [in] */ handle_t hBinding);
+
+TrayRpcStopResult ConfirmStopService( 
     /* [in] */ handle_t hBinding);
 
 TrayRpcStatusCode GetAuthInfo( 

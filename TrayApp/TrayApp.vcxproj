@@ -221,6 +221,9 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TrayIconManager.h" />
     <ClInclude Include="TrayApp.h" />
+    <ClInclude Include="UserDesktopSession.h" />
+    <ClInclude Include="UserIsolatedStopConfirmation.h" />
+    <ClInclude Include="WinApiLog.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Shared\ProcessUtils.cpp">
@@ -246,6 +249,9 @@
     <ClCompile Include="SingleInstanceGuard.cpp" />
     <ClCompile Include="TrayIconManager.cpp" />
     <ClCompile Include="TrayApp.cpp" />
+    <ClCompile Include="UserDesktopSession.cpp" />
+    <ClCompile Include="UserIsolatedStopConfirmation.cpp" />
+    <ClCompile Include="WinApiLog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TrayApp.rc" />

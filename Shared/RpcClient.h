@@ -6,6 +6,15 @@
 
 namespace RpcClient
 {
+    enum class StopRequestResult
+    {
+        Approved = 0,
+        Rejected = 1,
+        Failed = 2,
+        ConfirmationRequired = 3,
+        TransportError = 100
+    };
+
     enum class RpcStatusCode
     {
         Ok = 0,
@@ -37,7 +46,8 @@ namespace RpcClient
     };
 
     // Отправляет существующую команду остановки службы.
-    bool RequestServiceStop();
+    StopRequestResult RequestServiceStop();
+    StopRequestResult ConfirmServiceStop();
 
     // Возвращает безопасную информацию о текущей аутентификации.
     RpcStatusCode GetCurrentAuthInfo(AuthInfo& authInfo);

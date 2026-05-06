@@ -259,7 +259,7 @@ bool ServiceUtils::EnsureServiceInstalled(const wchar_t* serviceName, const wcha
         nullptr,
         nullptr,
         nullptr,
-        nullptr,
+        L"LocalSystem",
         nullptr));
     if (!serviceHandle)
     {

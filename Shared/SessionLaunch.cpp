@@ -1,5 +1,7 @@
 #include "SessionLaunch.h"
 
+#include "ProcessProtection.h"
+
 #include <tlhelp32.h>
 #include <userenv.h>
 #include <wtsapi32.h>
@@ -29,6 +31,13 @@ namespace
 
     bool g_privilegesInitialized = false;
     bool g_privilegesEnabled = false;
+
+    void LogChildHardeningFailure()
+    {
+        OutputDebugStringW(
+            L"[TrayService][WARNING] ProtectProcessFromTermination failed for a TrayApp child process. "
+            L"That TrayApp instance will be terminated, but TrayService will continue running.\r\n");
+    }
 
     bool EnablePrivilegeOnProcessToken(HANDLE processToken, const wchar_t* privilegeName)
     {
@@ -330,6 +339,16 @@ namespace
 
         if (!createResult)
         {
+            return false;
+        }
+
+        if (!ProcessProtection::ProtectProcessFromTermination(processInfo.hProcess))
+        {
+            LogChildHardeningFailure();
+            TerminateProcess(processInfo.hProcess, ERROR_ACCESS_DENIED);
+            WaitForSingleObject(processInfo.hProcess, 1000);
+            CloseHandle(processInfo.hThread);
+            CloseHandle(processInfo.hProcess);
             return false;
         }
 

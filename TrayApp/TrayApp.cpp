@@ -6,6 +6,7 @@
 
 #include "SingleInstanceGuard.h"
 #include "TrayIconManager.h"
+#include "UserIsolatedStopConfirmation.h"
 #include "../Shared/ProcessUtils.h"
 #include "../Shared/RpcClient.h"
 #include "../Shared/ServiceUtils.h"
@@ -1019,9 +1020,67 @@ bool ShouldTerminateAtStartup()
 // Requests service stop over RPC.
 bool TryStopServiceByRpc(HWND ownerWindow)
 {
-    if (RpcClient::RequestServiceStop())
+    const RpcClient::StopRequestResult stopResult = RpcClient::RequestServiceStop();
+    if (stopResult == RpcClient::StopRequestResult::Approved)
     {
         return true;
+    }
+
+    if (stopResult == RpcClient::StopRequestResult::Rejected)
+    {
+        MessageBoxW(
+            ownerWindow,
+            L"Service stop request was rejected in isolated desktop confirmation.",
+            L"TrayApp",
+            MB_OK | MB_ICONINFORMATION);
+        return false;
+    }
+
+    if (stopResult == RpcClient::StopRequestResult::ConfirmationRequired)
+    {
+        const StopConfirmationResult confirmationResult = ShowStopConfirmationOnIsolatedDesktop();
+        if (confirmationResult == StopConfirmationResult::Rejected)
+        {
+            return false;
+        }
+
+        if (confirmationResult == StopConfirmationResult::Failed)
+        {
+            MessageBoxW(
+                ownerWindow,
+                L"Could not start isolated desktop confirmation in the current user session.",
+                L"TrayApp",
+                MB_OK | MB_ICONERROR);
+            return false;
+        }
+
+        const RpcClient::StopRequestResult confirmResult = RpcClient::ConfirmServiceStop();
+        if (confirmResult == RpcClient::StopRequestResult::Approved)
+        {
+            return true;
+        }
+
+        if (!IsServiceRunning())
+        {
+            return true;
+        }
+
+        MessageBoxW(
+            ownerWindow,
+            L"Service stop was approved locally, but TrayApp could not send the final stop confirmation to TrayService.",
+            L"TrayApp",
+            MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    if (stopResult == RpcClient::StopRequestResult::Failed)
+    {
+        MessageBoxW(
+            ownerWindow,
+            L"TrayService received the stop request, but confirmation could not be started.",
+            L"TrayApp",
+            MB_OK | MB_ICONERROR);
+        return false;
     }
 
     if (!IsServiceRunning())
@@ -1031,7 +1090,7 @@ bool TryStopServiceByRpc(HWND ownerWindow)
 
     MessageBoxW(
         ownerWindow,
-        L"Could not send service stop request over RPC.",
+        L"Could not connect to the TrayService RPC endpoint.",
         L"TrayApp",
         MB_OK | MB_ICONERROR);
     return false;
