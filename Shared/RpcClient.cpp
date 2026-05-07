@@ -17,6 +17,51 @@ namespace
     constexpr wchar_t kRpcProtocolSequence[] = L"ncalrpc";
     constexpr wchar_t kRpcEndpoint[] = L"TrayServiceControlEndpoint";
 
+    std::wstring FormatRpcError(DWORD errorCode)
+    {
+        wchar_t* rawMessage = nullptr;
+        const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER
+            | FORMAT_MESSAGE_FROM_SYSTEM
+            | FORMAT_MESSAGE_IGNORE_INSERTS;
+        const DWORD result = FormatMessageW(
+            flags,
+            nullptr,
+            errorCode,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            reinterpret_cast<LPWSTR>(&rawMessage),
+            0,
+            nullptr);
+        if (result == 0 || rawMessage == nullptr)
+        {
+            return L"(no text)";
+        }
+
+        std::wstring message = rawMessage;
+        LocalFree(rawMessage);
+        return message;
+    }
+
+    void LogRpcClientInfo(const wchar_t* message)
+    {
+        std::wstring text = L"[TrayApp][RPC] ";
+        text += message != nullptr ? message : L"(no message)";
+        text += L"\r\n";
+        OutputDebugStringW(text.c_str());
+    }
+
+    void LogRpcClientStatus(const wchar_t* stepName, RPC_STATUS status)
+    {
+        std::wstring text = L"[TrayApp][RPC] ";
+        text += stepName != nullptr ? stepName : L"(unknown step)";
+        text += status == RPC_S_OK ? L" succeeded." : L" failed.";
+        text += L" status=";
+        text += std::to_wstring(status);
+        text += L" message=";
+        text += FormatRpcError(status);
+        text += L"\r\n";
+        OutputDebugStringW(text.c_str());
+    }
+
     class RpcBinding
     {
     public:
@@ -37,6 +82,8 @@ namespace
 
         bool Create()
         {
+            LogRpcClientInfo(L"Creating RPC binding to TrayServiceControlEndpoint.");
+
             RPC_STATUS status = RpcStringBindingComposeW(
                 nullptr,
                 reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcProtocolSequence)),
@@ -44,12 +91,14 @@ namespace
                 reinterpret_cast<RPC_WSTR>(const_cast<wchar_t*>(kRpcEndpoint)),
                 nullptr,
                 &m_stringBinding);
+            LogRpcClientStatus(L"RpcStringBindingComposeW", status);
             if (status != RPC_S_OK)
             {
                 return false;
             }
 
             status = RpcBindingFromStringBindingW(m_stringBinding, &m_bindingHandle);
+            LogRpcClientStatus(L"RpcBindingFromStringBindingW", status);
             return status == RPC_S_OK;
         }
 
@@ -63,20 +112,72 @@ namespace
         RPC_BINDING_HANDLE m_bindingHandle = nullptr;
     };
 
-    bool RpcCallStopService(RPC_BINDING_HANDLE bindingHandle)
+    bool RpcCallStopService(
+        RPC_BINDING_HANDLE bindingHandle,
+        TrayRpcStopResult* stopResult,
+        RPC_STATUS* exceptionCode)
     {
+        if (stopResult == nullptr || exceptionCode == nullptr)
+        {
+            return false;
+        }
+
+        *exceptionCode = RPC_S_OK;
         bool isSuccess = true;
         RpcTryExcept
         {
-            ::StopService(bindingHandle);
+            *stopResult = ::StopService(bindingHandle);
         }
         RpcExcept(1)
         {
+            *exceptionCode = RpcExceptionCode();
             isSuccess = false;
         }
         RpcEndExcept;
 
         return isSuccess;
+    }
+
+    bool RpcCallConfirmStopService(
+        RPC_BINDING_HANDLE bindingHandle,
+        TrayRpcStopResult* stopResult,
+        RPC_STATUS* exceptionCode)
+    {
+        if (stopResult == nullptr || exceptionCode == nullptr)
+        {
+            return false;
+        }
+
+        *exceptionCode = RPC_S_OK;
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *stopResult = ::ConfirmStopService(bindingHandle);
+        }
+        RpcExcept(1)
+        {
+            *exceptionCode = RpcExceptionCode();
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    RpcClient::StopRequestResult FromRpcStopResult(TrayRpcStopResult stopResult)
+    {
+        switch (stopResult)
+        {
+        case TRAY_RPC_STOP_APPROVED:
+            return RpcClient::StopRequestResult::Approved;
+        case TRAY_RPC_STOP_REJECTED:
+            return RpcClient::StopRequestResult::Rejected;
+        case TRAY_RPC_STOP_CONFIRMATION_REQUIRED:
+            return RpcClient::StopRequestResult::ConfirmationRequired;
+        case TRAY_RPC_STOP_FAILED:
+        default:
+            return RpcClient::StopRequestResult::Failed;
+        }
     }
 
     bool RpcCallGetAuthInfo(
@@ -241,16 +342,66 @@ namespace
     }
 }
 
-bool RpcClient::RequestServiceStop()
+RpcClient::StopRequestResult RpcClient::RequestServiceStop()
 {
-    // Вызывает RPC-метод остановки службы.
     RpcBinding binding;
     if (!binding.Create())
     {
-        return false;
+        LogRpcClientInfo(L"StopService RPC failed before call because endpoint binding could not be created.");
+        return StopRequestResult::TransportError;
     }
 
-    return RpcCallStopService(binding.Get());
+    TrayRpcStopResult stopResult = TRAY_RPC_STOP_FAILED;
+    RPC_STATUS exceptionCode = RPC_S_OK;
+
+    LogRpcClientInfo(L"Sending StopService RPC request.");
+    if (!RpcCallStopService(binding.Get(), &stopResult, &exceptionCode))
+    {
+        LogRpcClientStatus(L"StopService RPC exception", exceptionCode);
+        LogRpcClientInfo(L"StopService RPC transport failed.");
+        return StopRequestResult::TransportError;
+    }
+
+    std::wstring serverResultText = L"StopService RPC call completed. serverResult=";
+    serverResultText += std::to_wstring(static_cast<int>(stopResult));
+    LogRpcClientInfo(serverResultText.c_str());
+
+    const StopRequestResult clientResult = FromRpcStopResult(stopResult);
+    std::wstring text = L"StopService RPC mapped client result=";
+    text += std::to_wstring(static_cast<int>(clientResult));
+    LogRpcClientInfo(text.c_str());
+    return clientResult;
+}
+
+RpcClient::StopRequestResult RpcClient::ConfirmServiceStop()
+{
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        LogRpcClientInfo(L"ConfirmStopService RPC failed before call because endpoint binding could not be created.");
+        return StopRequestResult::TransportError;
+    }
+
+    TrayRpcStopResult stopResult = TRAY_RPC_STOP_FAILED;
+    RPC_STATUS exceptionCode = RPC_S_OK;
+
+    LogRpcClientInfo(L"Sending ConfirmStopService RPC request.");
+    if (!RpcCallConfirmStopService(binding.Get(), &stopResult, &exceptionCode))
+    {
+        LogRpcClientStatus(L"ConfirmStopService RPC exception", exceptionCode);
+        LogRpcClientInfo(L"ConfirmStopService RPC transport failed.");
+        return StopRequestResult::TransportError;
+    }
+
+    std::wstring serverResultText = L"ConfirmStopService RPC call completed. serverResult=";
+    serverResultText += std::to_wstring(static_cast<int>(stopResult));
+    LogRpcClientInfo(serverResultText.c_str());
+
+    const StopRequestResult clientResult = FromRpcStopResult(stopResult);
+    std::wstring text = L"ConfirmStopService RPC mapped client result=";
+    text += std::to_wstring(static_cast<int>(clientResult));
+    LogRpcClientInfo(text.c_str());
+    return clientResult;
 }
 
 RpcClient::RpcStatusCode RpcClient::GetCurrentAuthInfo(AuthInfo& authInfo)
@@ -393,3 +544,4 @@ extern "C" void __RPC_USER midl_user_free(void* pointer)
 {
     free(pointer);
 }
+

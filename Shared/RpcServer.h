@@ -2,8 +2,17 @@
 
 namespace RpcServer
 {
-    using StopRequestCallback = void(*)();
+    enum class StopRequestResult
+    {
+        Approved = 0,
+        Rejected = 1,
+        Failed = 2,
+        ConfirmationRequired = 3
+    };
 
-    bool Start(StopRequestCallback callback);
+    using StopRequestCallback = StopRequestResult(*)();
+    using ConfirmStopCallback = StopRequestResult(*)();
+
+    bool Start(StopRequestCallback stopRequestCallback, ConfirmStopCallback confirmStopCallback);
     void Stop();
 }

@@ -1,21 +1,75 @@
 #include <windows.h>
 #include <wtsapi32.h>
 
+#include <mutex>
 #include <string>
 
 #include "../Shared/RpcServer.h"
+#include "../Shared/ProcessProtection.h"
 #include "../Shared/ServiceApiState.h"
 #include "../Shared/ServiceUtils.h"
 #include "../Shared/SessionLaunch.h"
+#include "WinApiLog.h"
 
 namespace
 {
     SERVICE_STATUS g_serviceStatus = {};
     SERVICE_STATUS_HANDLE g_statusHandle = nullptr;
     HANDLE g_stopRequestedEvent = nullptr;
+    std::mutex g_stopConfirmationFlowMutex;
 
     constexpr DWORD kGuiTerminationTimeoutMs = 5000;
     constexpr DWORD kLaunchRetryIntervalMs = 5000;
+    constexpr bool kAllowAdministratorsToTerminateProcesses = false;
+    constexpr bool kDenyServiceStopForAdministrators = true;
+    constexpr bool kRestrictServiceSecurityWritesForAdministrators = false;
+
+    void LogHardeningContinueWarning(const wchar_t* stepName)
+    {
+        std::wstring text = L"[TrayService][WARNING] ";
+        text += stepName != nullptr ? stepName : L"(unknown hardening step)";
+        text += L" failed during startup. TrayService will continue startup and attempt to reach SERVICE_RUNNING.\r\n";
+        OutputDebugStringW(text.c_str());
+    }
+
+    void LogRpcStopFlow(const wchar_t* message)
+    {
+        std::wstring text = L"[TrayService][RPC] ";
+        text += message != nullptr ? message : L"(no message)";
+        text += L"\r\n";
+        OutputDebugStringW(text.c_str());
+    }
+
+    void LogServiceAndConsoleSessions()
+    {
+        DWORD serviceSessionId = 0;
+        if (!ProcessIdToSessionId(GetCurrentProcessId(), &serviceSessionId))
+        {
+            WinApiLog::LogLastError(L"ProcessIdToSessionId(TrayService)");
+            return;
+        }
+
+        const DWORD activeConsoleSessionId = WTSGetActiveConsoleSessionId();
+        std::wstring text = L"TrayService session context. serviceSessionId=";
+        text += std::to_wstring(serviceSessionId);
+        text += L" activeConsoleSessionId=";
+        if (activeConsoleSessionId == 0xFFFFFFFF)
+        {
+            text += L"INVALID";
+        }
+        else
+        {
+            text += std::to_wstring(activeConsoleSessionId);
+        }
+
+        LogRpcStopFlow(text.c_str());
+
+        if (serviceSessionId == 0)
+        {
+            LogRpcStopFlow(
+                L"TrayService is running in Session 0. Service-side desktop confirmation cannot be shown to the interactive user because of Session 0 isolation.");
+        }
+    }
 
     void ReportServiceStatus(DWORD currentState, DWORD win32ExitCode, DWORD waitHint)
     {
@@ -46,12 +100,36 @@ namespace
         SetServiceStatus(g_statusHandle, &g_serviceStatus);
     }
 
-    void RequestServiceStopFromRpc()
+    RpcServer::StopRequestResult RequestServiceStopFromRpc()
     {
-        if (g_stopRequestedEvent != nullptr)
+        std::lock_guard<std::mutex> lock(g_stopConfirmationFlowMutex);
+
+        LogRpcStopFlow(L"StopService callback entered.");
+        LogServiceAndConsoleSessions();
+        LogRpcStopFlow(
+            L"Stop confirmation will be delegated to TrayApp in the caller user session instead of being shown from TrayService.");
+        return RpcServer::StopRequestResult::ConfirmationRequired;
+    }
+
+    RpcServer::StopRequestResult ConfirmServiceStopFromRpc()
+    {
+        std::lock_guard<std::mutex> lock(g_stopConfirmationFlowMutex);
+
+        LogRpcStopFlow(L"ConfirmStopService callback entered.");
+        if (g_stopRequestedEvent == nullptr)
         {
-            SetEvent(g_stopRequestedEvent);
+            LogRpcStopFlow(L"ConfirmStopService failed because the stop event handle is not available.");
+            return RpcServer::StopRequestResult::Failed;
         }
+
+        if (!SetEvent(g_stopRequestedEvent))
+        {
+            WinApiLog::LogLastError(L"SetEvent(g_stopRequestedEvent)");
+            return RpcServer::StopRequestResult::Failed;
+        }
+
+        LogRpcStopFlow(L"ConfirmStopService approved service shutdown after user-session confirmation.");
+        return RpcServer::StopRequestResult::Approved;
     }
 
     std::wstring GetTrayAppPath()
@@ -133,6 +211,31 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
         return;
     }
 
+    ProcessProtection::ProtectionPolicy protectionPolicy = {};
+    protectionPolicy.administratorsTerminationPolicy =
+        kAllowAdministratorsToTerminateProcesses
+        ? ProcessProtection::AdministratorsTerminationPolicy::AllowTerminate
+        : ProcessProtection::AdministratorsTerminationPolicy::DenyTerminate;
+    protectionPolicy.denyServiceStopForAdministrators = kDenyServiceStopForAdministrators;
+    protectionPolicy.restrictServiceSecurityWriteForAdministrators =
+        kRestrictServiceSecurityWritesForAdministrators;
+    ProcessProtection::SetProtectionPolicy(protectionPolicy);
+
+    const bool processSecurityHardened = ProcessProtection::HardenProcessSecurity();
+    const bool serviceSecurityHardened = ProcessProtection::HardenServiceSecurity();
+    if (!processSecurityHardened || !serviceSecurityHardened)
+    {
+        if (!processSecurityHardened)
+        {
+            LogHardeningContinueWarning(L"HardenProcessSecurity");
+        }
+
+        if (!serviceSecurityHardened)
+        {
+            LogHardeningContinueWarning(L"HardenServiceSecurity");
+        }
+    }
+
     const std::wstring trayAppPath = GetTrayAppPath();
     if (trayAppPath.empty())
     {
@@ -150,7 +253,7 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
         return;
     }
 
-    if (!RpcServer::Start(RequestServiceStopFromRpc))
+    if (!RpcServer::Start(RequestServiceStopFromRpc, ConfirmServiceStopFromRpc))
     {
         SessionLaunch::Shutdown();
         CloseHandle(g_stopRequestedEvent);

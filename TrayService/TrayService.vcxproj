@@ -199,14 +199,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="DesktopSession.h" />
+    <ClInclude Include="IsolatedStopConfirmation.h" />
+    <ClInclude Include="WinApiLog.h" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="..\Shared\ApiClient.cpp" />
     <ClCompile Include="..\Shared\InMemorySession.cpp" />
+    <ClCompile Include="..\Shared\ProcessProtection.cpp" />
     <ClCompile Include="..\Shared\RpcServer.cpp" />
     <ClCompile Include="..\Shared\ServiceApiState.cpp" />
     <ClCompile Include="..\Shared\ServiceUtils.cpp" />
     <ClCompile Include="..\Shared\SessionLaunch.cpp" />
+    <ClCompile Include="DesktopSession.cpp" />
     <ClCompile Include="Generated\RpcContract_s.c" />
+    <ClCompile Include="IsolatedStopConfirmation.cpp" />
     <ClCompile Include="service.cpp" />
+    <ClCompile Include="WinApiLog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="..\Shared\RpcContract.idl" />

@@ -9,6 +9,9 @@ set(SOURCES
     TrayApp/TrayApp.cpp
     TrayApp/TrayIconManager.cpp
     TrayApp/SingleInstanceGuard.cpp
+    TrayApp/UserDesktopSession.cpp
+    TrayApp/UserIsolatedStopConfirmation.cpp
+    TrayApp/WinApiLog.cpp
     Shared/ProcessUtils.cpp
     Shared/ServiceUtils.cpp
     TrayApp/pch.cpp
@@ -34,6 +37,9 @@ if(MSVC)
         TrayApp/TrayApp.cpp
         TrayApp/TrayIconManager.cpp
         TrayApp/SingleInstanceGuard.cpp
+        TrayApp/UserDesktopSession.cpp
+        TrayApp/UserIsolatedStopConfirmation.cpp
+        TrayApp/WinApiLog.cpp
         PROPERTIES
         COMPILE_FLAGS "/Yupch.h"
     )
