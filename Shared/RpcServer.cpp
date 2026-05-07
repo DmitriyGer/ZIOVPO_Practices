@@ -5,8 +5,10 @@
 #include <cstdlib>
 
 #include <mutex>
+#include <string>
 
 #include "RpcContract.h"
+#include "ServiceApiState.h"
 
 #pragma comment(lib, "Rpcrt4.lib")
 
@@ -66,6 +68,104 @@ extern "C" void StopService(handle_t /*hBinding*/)
     if (callback != nullptr)
     {
         callback();
+    }
+}
+
+extern "C" TrayRpcStatusCode GetAuthInfo(
+    handle_t /*hBinding*/,
+    TrayRpcAuthInfo* authInfo)
+{
+    // Returns safe current authentication state.
+    try
+    {
+        return ServiceApiState::Instance().GetAuthInfo(authInfo);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode Login(
+    handle_t /*hBinding*/,
+    wchar_t* username,
+    wchar_t* password,
+    TrayRpcAuthInfo* authInfo)
+{
+    // Executes login and keeps tokens only in service memory.
+    const std::wstring userNameValue = username != nullptr ? username : L"";
+    const std::wstring passwordValue = password != nullptr ? password : L"";
+
+    try
+    {
+        return ServiceApiState::Instance().Login(userNameValue, passwordValue, authInfo);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode Logout(handle_t /*hBinding*/)
+{
+    // Executes logout and clears all in-memory secrets.
+    try
+    {
+        return ServiceApiState::Instance().Logout();
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode GetLicenseState(
+    handle_t /*hBinding*/,
+    hyper productId,
+    wchar_t* deviceMac,
+    TrayRpcLicenseInfo* licenseInfo)
+{
+    // Returns safe current license state.
+    const std::wstring deviceMacValue = deviceMac != nullptr ? deviceMac : L"";
+
+    try
+    {
+        return ServiceApiState::Instance().GetLicenseState(
+            static_cast<long long>(productId),
+            deviceMacValue,
+            licenseInfo);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode ActivateProduct(
+    handle_t /*hBinding*/,
+    wchar_t* activationKey,
+    hyper productId,
+    wchar_t* deviceName,
+    wchar_t* deviceMac,
+    TrayRpcLicenseInfo* licenseInfo)
+{
+    // Executes product activation and returns safe license state.
+    const std::wstring activationKeyValue = activationKey != nullptr ? activationKey : L"";
+    const std::wstring deviceNameValue = deviceName != nullptr ? deviceName : L"";
+    const std::wstring deviceMacValue = deviceMac != nullptr ? deviceMac : L"";
+
+    try
+    {
+        return ServiceApiState::Instance().ActivateProduct(
+            activationKeyValue,
+            static_cast<long long>(productId),
+            deviceNameValue,
+            deviceMacValue,
+            licenseInfo);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
     }
 }
 
