@@ -1,0 +1,10 @@
+[
+    uuid(89BD6495-20FA-4C90-9A1D-37A9FD9603B2),
+    version(1.0),
+    pointer_default(unique),
+    endpoint("ncalrpc:[TrayServiceControlEndpoint]")
+]
+interface TrayRpcControl
+{
+    void StopService([in] handle_t hBinding);
+}

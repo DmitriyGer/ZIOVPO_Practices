@@ -6,6 +6,11 @@
 
 #include "SingleInstanceGuard.h"
 #include "TrayIconManager.h"
+#include "../Shared/ProcessUtils.h"
+#include "../Shared/RpcClient.h"
+#include "../Shared/ServiceUtils.h"
+
+#include <string>
 
 #define MAX_LOADSTRING 100
 
@@ -13,6 +18,55 @@ namespace
 {
     constexpr UINT kTrayIconCallbackMessage = WM_APP + 1;
     constexpr UINT kTrayOpenCommandId = IDM_TRAY_OPEN;
+    constexpr DWORD kServiceStartTimeoutMs = 30000;
+
+    std::wstring GetSiblingBinaryPath(const wchar_t* binaryName)
+    {
+        if (binaryName == nullptr || binaryName[0] == L'\0')
+        {
+            return {};
+        }
+
+        wchar_t modulePath[MAX_PATH] = {};
+        if (GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath)) == 0)
+        {
+            return {};
+        }
+
+        std::wstring siblingPath = modulePath;
+        const size_t separatorPos = siblingPath.find_last_of(L"\\/");
+        if (separatorPos == std::wstring::npos)
+        {
+            return {};
+        }
+
+        siblingPath.erase(separatorPos + 1);
+        siblingPath += binaryName;
+        return siblingPath;
+    }
+
+    bool IsCurrentProcessChildOfService(const SERVICE_STATUS_PROCESS& serviceStatus)
+    {
+        if (serviceStatus.dwCurrentState != SERVICE_RUNNING || serviceStatus.dwProcessId == 0)
+        {
+            return false;
+        }
+
+        DWORD parentProcessId = 0;
+        if (!ProcessUtils::GetParentProcessId(GetCurrentProcessId(), parentProcessId))
+        {
+            return false;
+        }
+
+        return parentProcessId == serviceStatus.dwProcessId;
+    }
+
+    bool IsServiceRunning()
+    {
+        SERVICE_STATUS_PROCESS serviceStatus = {};
+        return ServiceUtils::QueryServiceStatus(ServiceUtils::kTrayServiceName, serviceStatus, nullptr)
+            && serviceStatus.dwCurrentState == SERVICE_RUNNING;
+    }
 }
 
 HINSTANCE hInst;
@@ -46,6 +100,10 @@ void HideMainWindowToTray(HWND hWnd);
 // Проверяет аргументы запуска и определяет режим фонового старта.
 bool ShouldStartInBackground(const wchar_t* commandLine);
 
+bool ShouldTerminateAtStartup();
+
+bool TryStopServiceByRpc(HWND ownerWindow);
+
 // Является точкой входа приложения и запускает главный цикл сообщений.
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -53,6 +111,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ int nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
+
+    if (ShouldTerminateAtStartup())
+    {
+        return 0;
+    }
 
     if (!g_singleInstanceGuard.TryLockForCurrentUser(L"TrayAppSingleInstanceMutex"))
     {
@@ -170,8 +233,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ShowMainWindowFromTray(hWnd);
             return 0;
         case IDM_EXIT:
-            g_isExitRequested = true;
-            DestroyWindow(hWnd);
+            if (TryStopServiceByRpc(hWnd) || !IsServiceRunning())
+            {
+                g_isExitRequested = true;
+                DestroyWindow(hWnd);
+            }
             return 0;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -250,6 +316,57 @@ bool ShouldStartInBackground(const wchar_t* commandLine)
         || wcsstr(commandLine, L"-background") != nullptr
         || wcsstr(commandLine, L"/tray") != nullptr
         || wcsstr(commandLine, L"-tray") != nullptr;
+}
+
+bool ShouldTerminateAtStartup()
+{
+    SERVICE_STATUS_PROCESS serviceStatus = {};
+    DWORD queryError = ERROR_SUCCESS;
+    if (!ServiceUtils::QueryServiceStatus(ServiceUtils::kTrayServiceName, serviceStatus, &queryError))
+    {
+        if (queryError == ERROR_SERVICE_DOES_NOT_EXIST)
+        {
+            const std::wstring serviceBinaryPath = GetSiblingBinaryPath(L"TrayService.exe");
+            if (!serviceBinaryPath.empty())
+            {
+                ServiceUtils::EnsureServiceInstalled(
+                    ServiceUtils::kTrayServiceName,
+                    serviceBinaryPath.c_str(),
+                    nullptr);
+            }
+        }
+
+        ServiceUtils::StartServiceAndWaitRunning(ServiceUtils::kTrayServiceName, kServiceStartTimeoutMs);
+        return true;
+    }
+
+    if (serviceStatus.dwCurrentState != SERVICE_RUNNING)
+    {
+        ServiceUtils::StartServiceAndWaitRunning(ServiceUtils::kTrayServiceName, kServiceStartTimeoutMs);
+        return true;
+    }
+
+    return !IsCurrentProcessChildOfService(serviceStatus);
+}
+
+bool TryStopServiceByRpc(HWND ownerWindow)
+{
+    if (RpcClient::RequestServiceStop())
+    {
+        return true;
+    }
+
+    if (!IsServiceRunning())
+    {
+        return false;
+    }
+
+    MessageBoxW(
+        ownerWindow,
+        L"Не удалось отправить запрос остановки службы через RPC.",
+        L"TrayApp",
+        MB_OK | MB_ICONERROR);
+    return false;
 }
 
 // Показывает окно "О программе".
