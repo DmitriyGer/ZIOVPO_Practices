@@ -1,14 +1,155 @@
 #include "ServiceApiState.h"
 
+#include "AntivirusScanner.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cwchar>
+#include <filesystem>
 #include <optional>
 #include <utility>
 
 namespace
 {
+    // constexpr wchar_t kApiBaseUrl[] = L"https://10.11.134.140:8443/";
     constexpr wchar_t kApiBaseUrl[] = L"https://192.168.1.56:8443/";
+    constexpr size_t kMaxRpcDirectoryResults = 32;
+
+    // Copies text into a fixed-size RPC wchar_t buffer.
+    template <size_t Size>
+    void CopyToRpcBuffer(const std::wstring& source, wchar_t (&destination)[Size])
+    {
+        destination[0] = L'\0';
+        if (!source.empty())
+        {
+            wcsncpy_s(destination, Size, source.c_str(), _TRUNCATE);
+        }
+    }
+
+    // Converts an internal scan status to the RPC verdict enum.
+    TrayRpcAvScanVerdict ToRpcVerdict(Antivirus::AvScanStatus status)
+    {
+        switch (status)
+        {
+        case Antivirus::AvScanStatus::Detected:
+            return TRAY_RPC_AV_SCAN_INFECTED;
+        case Antivirus::AvScanStatus::Error:
+            return TRAY_RPC_AV_SCAN_ERROR;
+        case Antivirus::AvScanStatus::Clean:
+        default:
+            return TRAY_RPC_AV_SCAN_CLEAN;
+        }
+    }
+
+    // Converts an internal object type to the RPC object type enum.
+    TrayRpcAvObjectType ToRpcObjectType(Antivirus::AvObjectType objectType)
+    {
+        switch (objectType)
+        {
+        case Antivirus::AvObjectType::Pe:
+            return TRAY_RPC_AV_OBJECT_PE;
+        case Antivirus::AvObjectType::ScriptText:
+            return TRAY_RPC_AV_OBJECT_SCRIPT_TEXT;
+        case Antivirus::AvObjectType::Unknown:
+        default:
+            return TRAY_RPC_AV_OBJECT_UNKNOWN;
+        }
+    }
+
+    // Converts an internal database load status to the RPC enum.
+    TrayRpcAvDatabaseLoadStatus ToRpcDatabaseLoadStatus(Antivirus::AvDatabaseLoadStatus status)
+    {
+        return status == Antivirus::AvDatabaseLoadStatus::Loaded
+            ? TRAY_RPC_AV_DATABASE_LOADED
+            : TRAY_RPC_AV_DATABASE_NOT_LOADED;
+    }
+
+    // Converts an internal file scan result to a fixed-size RPC result.
+    void FillRpcFileScanResult(
+        const Antivirus::AvFileScanResult& source,
+        TrayRpcAvFileScanResult* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        destination->verdict = ToRpcVerdict(source.Status);
+        CopyToRpcBuffer(source.Path, destination->path);
+        destination->objectType = ToRpcObjectType(source.ObjectType);
+        destination->detectionOffset = static_cast<hyper>(source.DetectionOffset);
+        CopyToRpcBuffer(source.RecordId, destination->recordId);
+        CopyToRpcBuffer(source.ObjectSignatureHex, destination->objectSignatureHex);
+        CopyToRpcBuffer(source.Message, destination->message);
+    }
+
+    // Converts an internal directory scan result to a fixed-size RPC result.
+    void FillRpcDirectoryScanResult(
+        const Antivirus::AvDirectoryScanResult& source,
+        TrayRpcAvDirectoryScanResult* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        CopyToRpcBuffer(source.Path, destination->path);
+        destination->totalScanned = static_cast<hyper>(source.TotalScanned);
+        destination->infectedCount = static_cast<hyper>(source.InfectedCount);
+        destination->errorCount = static_cast<hyper>(source.ErrorCount);
+        CopyToRpcBuffer(source.Message, destination->message);
+
+        const size_t copyCount = (std::min)(source.Results.size(), kMaxRpcDirectoryResults);
+        destination->resultCount = static_cast<int>(copyCount);
+        destination->truncated = source.Results.size() > kMaxRpcDirectoryResults ? 1 : 0;
+        for (size_t index = 0; index < copyCount; ++index)
+        {
+            FillRpcFileScanResult(source.Results[index], &destination->results[index]);
+        }
+    }
+
+    // Converts database metadata to the RPC structure.
+    void FillRpcAvDatabaseInfo(
+        const Antivirus::AvDatabaseInfo& source,
+        TrayRpcAvDatabaseInfo* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        destination->recordCount = static_cast<hyper>(source.RecordCount);
+        destination->loadStatus = ToRpcDatabaseLoadStatus(source.LoadStatus);
+
+        if (source.ReleaseDateUtc != std::chrono::system_clock::time_point{})
+        {
+            destination->hasReleaseDate = 1;
+            destination->releaseEpochSeconds = static_cast<hyper>(
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    source.ReleaseDateUtc.time_since_epoch()).count());
+        }
+    }
+
+    // Converts antivirus access status to a user-facing scan error message.
+    std::wstring AntivirusAccessStatusToMessage(TrayRpcStatusCode status)
+    {
+        switch (status)
+        {
+        case TRAY_RPC_NO_LICENSE:
+            return L"Active license is required for scanning.";
+        case TRAY_RPC_LICENSE_EXPIRED:
+            return L"License is expired. Scanning is unavailable.";
+        case TRAY_RPC_LICENSE_BLOCKED:
+            return L"License is blocked. Scanning is unavailable.";
+        case TRAY_RPC_NOT_AUTHENTICATED:
+            return L"Authentication is required for scanning.";
+        default:
+            return L"Antivirus scanning is unavailable.";
+        }
+    }
 }
 
 ServiceApiState::ServiceApiState()
@@ -36,6 +177,7 @@ void ServiceApiState::Initialize()
     m_lastDeviceMac.clear();
     m_lastActivationKey.clear();
     m_licenseTasksRunning = false;
+    LoadAntivirusDatabaseLocked();
 }
 
 // Освобождает состояние службы при завершении.
@@ -43,6 +185,7 @@ void ServiceApiState::Shutdown()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     ClearAuthAndLicenseLocked();
+    m_avDatabase.Clear();
     m_initialized = false;
 }
 
@@ -207,6 +350,7 @@ TrayRpcStatusCode ServiceApiState::ActivateProduct(
 
         const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
         StartLicenseDependentTasksIfAllowedLocked();
+        LoadAntivirusDatabaseLocked();
         FillLicenseInfoLocked(licenseInfo, licenseStatus);
         return licenseStatus;
     }
@@ -297,6 +441,116 @@ void ServiceApiState::Tick()
     {
         StartLicenseDependentTasksIfAllowedLocked();
     }
+}
+
+// Returns current in-memory antivirus database metadata.
+Antivirus::AvDatabaseInfo ServiceApiState::GetAntivirusDatabaseInfo()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_avDatabase.GetInfo();
+}
+
+// Scans one selected file through the antivirus engine.
+TrayRpcStatusCode ServiceApiState::ScanFile(const std::wstring& path, TrayRpcAvFileScanResult* scanResult)
+{
+    if (scanResult == nullptr || path.empty())
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
+        {
+            Antivirus::AvFileScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Status = Antivirus::AvScanStatus::Error;
+            errorResult.Message = L"TrayService is not initialized.";
+            FillRpcFileScanResult(errorResult, scanResult);
+            return TRAY_RPC_SERVER_ERROR;
+        }
+
+        databaseSnapshot = m_avDatabase;
+
+        const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
+        if (licenseStatus != TRAY_RPC_OK)
+        {
+            Antivirus::AvFileScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Status = Antivirus::AvScanStatus::Error;
+            errorResult.Message = AntivirusAccessStatusToMessage(licenseStatus);
+            FillRpcFileScanResult(errorResult, scanResult);
+            return licenseStatus;
+        }
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvFileScanResult result = scanner.ScanFile(std::filesystem::path(path));
+    FillRpcFileScanResult(result, scanResult);
+    return TRAY_RPC_OK;
+}
+
+// Recursively scans one selected directory through the antivirus engine.
+TrayRpcStatusCode ServiceApiState::ScanDirectory(
+    const std::wstring& path,
+    TrayRpcAvDirectoryScanResult* scanResult)
+{
+    if (scanResult == nullptr || path.empty())
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Message = L"TrayService is not initialized.";
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return TRAY_RPC_SERVER_ERROR;
+        }
+
+        databaseSnapshot = m_avDatabase;
+
+        const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
+        if (licenseStatus != TRAY_RPC_OK)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Message = AntivirusAccessStatusToMessage(licenseStatus);
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return licenseStatus;
+        }
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvDirectoryScanResult result = scanner.ScanDirectory(std::filesystem::path(path));
+    FillRpcDirectoryScanResult(result, scanResult);
+    return TRAY_RPC_OK;
+}
+
+// Returns antivirus database metadata for RPC callers.
+TrayRpcStatusCode ServiceApiState::GetAvDatabaseInfo(TrayRpcAvDatabaseInfo* databaseInfo)
+{
+    if (databaseInfo == nullptr)
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    FillRpcAvDatabaseInfo(m_avDatabase.GetInfo(), databaseInfo);
+    return TRAY_RPC_OK;
+}
+
+// Loads demo antivirus records into the in-memory database.
+void ServiceApiState::LoadAntivirusDatabaseLocked()
+{
+    m_avDatabase.LoadDemoRecords();
 }
 
 // Возвращает безопасное состояние текущей лицензии без обращения к клиенту.
