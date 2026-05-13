@@ -82,6 +82,29 @@ enum TrayRpcStatusCode
         TRAY_RPC_LICENSE_BLOCKED	= 8
     } 	TrayRpcStatusCode;
 
+typedef 
+enum TrayRpcAvScanVerdict
+    {
+        TRAY_RPC_AV_SCAN_CLEAN	= 0,
+        TRAY_RPC_AV_SCAN_INFECTED	= 1,
+        TRAY_RPC_AV_SCAN_ERROR	= 2
+    } 	TrayRpcAvScanVerdict;
+
+typedef 
+enum TrayRpcAvObjectType
+    {
+        TRAY_RPC_AV_OBJECT_UNKNOWN	= 0,
+        TRAY_RPC_AV_OBJECT_PE	= 1,
+        TRAY_RPC_AV_OBJECT_SCRIPT_TEXT	= 2
+    } 	TrayRpcAvObjectType;
+
+typedef 
+enum TrayRpcAvDatabaseLoadStatus
+    {
+        TRAY_RPC_AV_DATABASE_NOT_LOADED	= 0,
+        TRAY_RPC_AV_DATABASE_LOADED	= 1
+    } 	TrayRpcAvDatabaseLoadStatus;
+
 typedef struct TrayRpcAuthInfo
     {
     int authenticated;
@@ -99,6 +122,37 @@ typedef struct TrayRpcLicenseInfo
     hyper expirationEpochSeconds;
     TrayRpcStatusCode errorCode;
     } 	TrayRpcLicenseInfo;
+
+typedef struct TrayRpcAvDatabaseInfo
+    {
+    int hasReleaseDate;
+    hyper releaseEpochSeconds;
+    hyper recordCount;
+    TrayRpcAvDatabaseLoadStatus loadStatus;
+    } 	TrayRpcAvDatabaseInfo;
+
+typedef struct TrayRpcAvFileScanResult
+    {
+    TrayRpcAvScanVerdict verdict;
+    wchar_t path[ 260 ];
+    TrayRpcAvObjectType objectType;
+    hyper detectionOffset;
+    wchar_t recordId[ 64 ];
+    wchar_t objectSignatureHex[ 64 ];
+    wchar_t message[ 256 ];
+    } 	TrayRpcAvFileScanResult;
+
+typedef struct TrayRpcAvDirectoryScanResult
+    {
+    wchar_t path[ 260 ];
+    hyper totalScanned;
+    hyper infectedCount;
+    hyper errorCount;
+    int resultCount;
+    int truncated;
+    TrayRpcAvFileScanResult results[ 32 ];
+    wchar_t message[ 256 ];
+    } 	TrayRpcAvDirectoryScanResult;
 
 TrayRpcStopResult StopService( 
     /* [in] */ handle_t hBinding);
@@ -132,6 +186,20 @@ TrayRpcStatusCode ActivateProduct(
     /* [string][in] */ wchar_t *deviceName,
     /* [string][in] */ wchar_t *deviceMac,
     /* [out] */ TrayRpcLicenseInfo *licenseInfo);
+
+TrayRpcStatusCode ScanFile( 
+    /* [in] */ handle_t hBinding,
+    /* [string][in] */ wchar_t *path,
+    /* [out] */ TrayRpcAvFileScanResult *scanResult);
+
+TrayRpcStatusCode ScanDirectory( 
+    /* [in] */ handle_t hBinding,
+    /* [string][in] */ wchar_t *path,
+    /* [out] */ TrayRpcAvDirectoryScanResult *scanResult);
+
+TrayRpcStatusCode GetAvDatabaseInfo( 
+    /* [in] */ handle_t hBinding,
+    /* [out] */ TrayRpcAvDatabaseInfo *databaseInfo);
 
 
 

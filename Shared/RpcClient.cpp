@@ -4,9 +4,12 @@
 #include <rpcdce.h>
 #include <cstdlib>
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "RpcContract.h"
 
@@ -286,6 +289,65 @@ namespace
         return isSuccess;
     }
 
+    bool RpcCallScanFile(
+        RPC_BINDING_HANDLE bindingHandle,
+        wchar_t* path,
+        TrayRpcAvFileScanResult* scanResult,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::ScanFile(bindingHandle, path, scanResult);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallScanDirectory(
+        RPC_BINDING_HANDLE bindingHandle,
+        wchar_t* path,
+        TrayRpcAvDirectoryScanResult* scanResult,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::ScanDirectory(bindingHandle, path, scanResult);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
+    bool RpcCallGetAvDatabaseInfo(
+        RPC_BINDING_HANDLE bindingHandle,
+        TrayRpcAvDatabaseInfo* databaseInfo,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::GetAvDatabaseInfo(bindingHandle, databaseInfo);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
     RpcClient::RpcStatusCode FromRpcStatus(TrayRpcStatusCode status)
     {
         switch (status)
@@ -338,6 +400,91 @@ namespace
             const auto expiration =
                 std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcLicenseInfo.expirationEpochSeconds));
             licenseInfo.expirationDateUtc = expiration;
+        }
+    }
+
+    RpcClient::AvScanVerdict FromRpcAvVerdict(TrayRpcAvScanVerdict verdict)
+    {
+        switch (verdict)
+        {
+        case TRAY_RPC_AV_SCAN_INFECTED:
+            return RpcClient::AvScanVerdict::Infected;
+        case TRAY_RPC_AV_SCAN_ERROR:
+            return RpcClient::AvScanVerdict::Error;
+        case TRAY_RPC_AV_SCAN_CLEAN:
+        default:
+            return RpcClient::AvScanVerdict::Clean;
+        }
+    }
+
+    RpcClient::AvObjectType FromRpcAvObjectType(TrayRpcAvObjectType objectType)
+    {
+        switch (objectType)
+        {
+        case TRAY_RPC_AV_OBJECT_PE:
+            return RpcClient::AvObjectType::Pe;
+        case TRAY_RPC_AV_OBJECT_SCRIPT_TEXT:
+            return RpcClient::AvObjectType::ScriptText;
+        case TRAY_RPC_AV_OBJECT_UNKNOWN:
+        default:
+            return RpcClient::AvObjectType::Unknown;
+        }
+    }
+
+    RpcClient::AvDatabaseLoadStatus FromRpcAvDatabaseLoadStatus(TrayRpcAvDatabaseLoadStatus status)
+    {
+        return status == TRAY_RPC_AV_DATABASE_LOADED
+            ? RpcClient::AvDatabaseLoadStatus::Loaded
+            : RpcClient::AvDatabaseLoadStatus::NotLoaded;
+    }
+
+    void FillAvFileScanResult(
+        const TrayRpcAvFileScanResult& rpcResult,
+        RpcClient::AvFileScanResult& scanResult)
+    {
+        scanResult = {};
+        scanResult.verdict = FromRpcAvVerdict(rpcResult.verdict);
+        scanResult.path = rpcResult.path;
+        scanResult.objectType = FromRpcAvObjectType(rpcResult.objectType);
+        scanResult.detectionOffset = static_cast<unsigned long long>(rpcResult.detectionOffset);
+        scanResult.recordId = rpcResult.recordId;
+        scanResult.objectSignatureHex = rpcResult.objectSignatureHex;
+        scanResult.message = rpcResult.message;
+    }
+
+    void FillAvDirectoryScanResult(
+        const TrayRpcAvDirectoryScanResult& rpcResult,
+        RpcClient::AvDirectoryScanResult& scanResult)
+    {
+        scanResult = {};
+        scanResult.path = rpcResult.path;
+        scanResult.totalScanned = static_cast<unsigned long long>(rpcResult.totalScanned);
+        scanResult.infectedCount = static_cast<unsigned long long>(rpcResult.infectedCount);
+        scanResult.errorCount = static_cast<unsigned long long>(rpcResult.errorCount);
+        scanResult.truncated = rpcResult.truncated != 0;
+        scanResult.message = rpcResult.message;
+
+        const int resultCount = (std::max)(0, rpcResult.resultCount);
+        scanResult.results.reserve(static_cast<size_t>(resultCount));
+        for (int index = 0; index < resultCount; ++index)
+        {
+            RpcClient::AvFileScanResult fileResult = {};
+            FillAvFileScanResult(rpcResult.results[index], fileResult);
+            scanResult.results.push_back(std::move(fileResult));
+        }
+    }
+
+    void FillAvDatabaseInfo(
+        const TrayRpcAvDatabaseInfo& rpcInfo,
+        RpcClient::AvDatabaseInfo& databaseInfo)
+    {
+        databaseInfo = {};
+        databaseInfo.recordCount = static_cast<unsigned long long>(rpcInfo.recordCount);
+        databaseInfo.loadStatus = FromRpcAvDatabaseLoadStatus(rpcInfo.loadStatus);
+        if (rpcInfo.hasReleaseDate != 0)
+        {
+            databaseInfo.releaseDateUtc =
+                std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcInfo.releaseEpochSeconds));
         }
     }
 }
@@ -532,6 +679,74 @@ RpcClient::RpcStatusCode RpcClient::ActivateProduct(
     }
 
     FillLicenseInfo(rpcLicenseInfo, licenseInfo);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::ScanFile(const std::wstring& path, AvFileScanResult& scanResult)
+{
+    // Calls RPC method for scanning one selected file.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcAvFileScanResult rpcResult = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallScanFile(binding.Get(), const_cast<wchar_t*>(path.c_str()), &rpcResult, &rpcStatus))
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillAvFileScanResult(rpcResult, scanResult);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::ScanDirectory(
+    const std::wstring& path,
+    AvDirectoryScanResult& scanResult)
+{
+    // Calls RPC method for recursively scanning one selected directory.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcAvDirectoryScanResult rpcResult = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallScanDirectory(binding.Get(), const_cast<wchar_t*>(path.c_str()), &rpcResult, &rpcStatus))
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillAvDirectoryScanResult(rpcResult, scanResult);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::GetAvDatabaseInfo(AvDatabaseInfo& databaseInfo)
+{
+    // Calls RPC method for reading in-memory antivirus database metadata.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        databaseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcAvDatabaseInfo rpcInfo = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallGetAvDatabaseInfo(binding.Get(), &rpcInfo, &rpcStatus))
+    {
+        databaseInfo = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillAvDatabaseInfo(rpcInfo, databaseInfo);
     return FromRpcStatus(rpcStatus);
 }
 

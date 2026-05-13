@@ -11,12 +11,17 @@
 #include "../Shared/RpcClient.h"
 #include "../Shared/ServiceUtils.h"
 
+#include <commdlg.h>
 #include <iphlpapi.h>
+#include <shlobj.h>
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #pragma comment(lib, "Iphlpapi.lib")
@@ -26,6 +31,8 @@
 namespace
 {
     constexpr UINT kTrayIconCallbackMessage = WM_APP + 1;
+    constexpr UINT kAvDatabaseRefreshCompletedMessage = WM_APP + 2;
+    constexpr UINT kAvScanCompletedMessage = WM_APP + 3;
     constexpr UINT kTrayOpenCommandId = IDM_TRAY_OPEN;
     constexpr UINT_PTR kLicensePollTimerId = 1;
     constexpr UINT kLicensePollIntervalMs = 10000;
@@ -46,8 +53,12 @@ namespace
     constexpr int kControlUserStatus = 4009;
     constexpr int kControlLicenseStatus = 4010;
     constexpr int kControlAntivirusStatus = 4011;
-    constexpr int kControlAntivirusAction = 4012;
+    constexpr int kControlRefreshAvDatabase = 4012;
     constexpr int kControlInfoStatus = 4013;
+    constexpr int kControlAvDatabaseStatus = 4014;
+    constexpr int kControlScanFile = 4015;
+    constexpr int kControlScanDirectory = 4016;
+    constexpr int kControlScanResults = 4017;
 
     // Converts integer control id to HMENU for CreateWindowEx.
     HMENU ControlIdToMenu(int controlId)
@@ -72,7 +83,11 @@ namespace
         HWND activationEdit = nullptr;
         HWND activationButton = nullptr;
 
-        HWND antivirusActionButton = nullptr;
+        HWND avDatabaseStatusLabel = nullptr;
+        HWND refreshAvDatabaseButton = nullptr;
+        HWND scanFileButton = nullptr;
+        HWND scanDirectoryButton = nullptr;
+        HWND scanResultsEdit = nullptr;
     };
 
     struct AppUiState
@@ -83,7 +98,33 @@ namespace
         RpcClient::LicenseInfo licenseInfo = {};
         std::wstring deviceName = kFallbackDeviceName;
         std::wstring deviceMac = kFallbackDeviceMac;
+        RpcClient::AvDatabaseInfo avDatabaseInfo = {};
+        std::wstring scanResultText;
         std::wstring infoMessage;
+        bool avOperationInProgress = false;
+    };
+
+    enum class AvScanOperation
+    {
+        File = 0,
+        Directory = 1
+    };
+
+    struct AvDatabaseRefreshAsyncResult
+    {
+        RpcClient::RpcStatusCode status = RpcClient::RpcStatusCode::ServerError;
+        RpcClient::AvDatabaseInfo databaseInfo = {};
+        bool showErrors = false;
+    };
+
+    struct AvScanAsyncResult
+    {
+        AvScanOperation operation = AvScanOperation::File;
+        RpcClient::RpcStatusCode scanStatus = RpcClient::RpcStatusCode::ServerError;
+        RpcClient::AvFileScanResult fileResult = {};
+        RpcClient::AvDirectoryScanResult directoryResult = {};
+        RpcClient::RpcStatusCode databaseStatus = RpcClient::RpcStatusCode::ServerError;
+        RpcClient::AvDatabaseInfo databaseInfo = {};
     };
 
     UiControls g_controls = {};
@@ -303,6 +344,149 @@ namespace
         return text;
     }
 
+    // Converts antivirus scan verdict to display text.
+    std::wstring AvVerdictToText(RpcClient::AvScanVerdict verdict)
+    {
+        switch (verdict)
+        {
+        case RpcClient::AvScanVerdict::Infected:
+            return L"infected";
+        case RpcClient::AvScanVerdict::Error:
+            return L"error";
+        case RpcClient::AvScanVerdict::Clean:
+        default:
+            return L"clean";
+        }
+    }
+
+    // Converts antivirus object type to display text.
+    std::wstring AvObjectTypeToText(RpcClient::AvObjectType objectType)
+    {
+        switch (objectType)
+        {
+        case RpcClient::AvObjectType::Pe:
+            return L"PE";
+        case RpcClient::AvObjectType::ScriptText:
+            return L"Script/Text";
+        case RpcClient::AvObjectType::Unknown:
+        default:
+            return L"Unknown";
+        }
+    }
+
+    // Converts antivirus database load status to display text.
+    std::wstring AvDatabaseLoadStatusToText(RpcClient::AvDatabaseLoadStatus status)
+    {
+        return status == RpcClient::AvDatabaseLoadStatus::Loaded ? L"loaded" : L"not loaded";
+    }
+
+    // Formats one file scan result for the multiline result view.
+    std::wstring FormatFileScanResult(const RpcClient::AvFileScanResult& result)
+    {
+        std::wstringstream text;
+        text << L"Result: " << AvVerdictToText(result.verdict) << L"\r\n";
+        text << L"Path: " << result.path << L"\r\n";
+        text << L"Object type: " << AvObjectTypeToText(result.objectType) << L"\r\n";
+        if (result.verdict == RpcClient::AvScanVerdict::Infected)
+        {
+            text << L"Threat/signature: " << (result.recordId.empty() ? L"<unknown>" : result.recordId) << L"\r\n";
+            text << L"Signature hash: "
+                << (result.objectSignatureHex.empty() ? L"<empty>" : result.objectSignatureHex) << L"\r\n";
+            text << L"Detection offset: " << result.detectionOffset << L"\r\n";
+        }
+        if (!result.message.empty())
+        {
+            text << L"Message: " << result.message << L"\r\n";
+        }
+
+        return text.str();
+    }
+
+    // Formats directory scan summary and per-file results.
+    std::wstring FormatDirectoryScanResult(const RpcClient::AvDirectoryScanResult& result)
+    {
+        std::wstringstream text;
+        text << L"Directory: " << result.path << L"\r\n";
+        text << L"Total scanned: " << result.totalScanned << L"\r\n";
+        text << L"Infected: " << result.infectedCount << L"\r\n";
+        text << L"Errors: " << result.errorCount << L"\r\n";
+        if (result.truncated)
+        {
+            text << L"Displayed file results are truncated by RPC response size.\r\n";
+        }
+        if (!result.message.empty())
+        {
+            text << L"Message: " << result.message << L"\r\n";
+        }
+
+        text << L"\r\nFiles:\r\n";
+        for (const RpcClient::AvFileScanResult& fileResult : result.results)
+        {
+            text << L"- " << AvVerdictToText(fileResult.verdict)
+                << L" | " << AvObjectTypeToText(fileResult.objectType)
+                << L" | " << fileResult.path;
+            if (!fileResult.recordId.empty())
+            {
+                text << L" | " << fileResult.recordId;
+            }
+            if (!fileResult.message.empty())
+            {
+                text << L" | " << fileResult.message;
+            }
+            text << L"\r\n";
+        }
+
+        return text.str();
+    }
+
+    // Opens a file picker and returns the selected path.
+    bool SelectFileForScan(HWND ownerWindow, std::wstring& selectedPath)
+    {
+        wchar_t fileName[MAX_PATH] = {};
+        OPENFILENAMEW openFileName = {};
+        openFileName.lStructSize = sizeof(openFileName);
+        openFileName.hwndOwner = ownerWindow;
+        openFileName.lpstrFile = fileName;
+        openFileName.nMaxFile = ARRAYSIZE(fileName);
+        openFileName.lpstrTitle = L"Select file to scan";
+        openFileName.lpstrFilter = L"All files\0*.*\0";
+        openFileName.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+
+        if (!GetOpenFileNameW(&openFileName))
+        {
+            return false;
+        }
+
+        selectedPath = fileName;
+        return true;
+    }
+
+    // Opens a folder picker and returns the selected path.
+    bool SelectDirectoryForScan(HWND ownerWindow, std::wstring& selectedPath)
+    {
+        BROWSEINFOW browseInfo = {};
+        browseInfo.hwndOwner = ownerWindow;
+        browseInfo.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+        browseInfo.lpszTitle = L"Select directory to scan";
+
+        PIDLIST_ABSOLUTE itemList = SHBrowseForFolderW(&browseInfo);
+        if (itemList == nullptr)
+        {
+            return false;
+        }
+
+        wchar_t path[MAX_PATH] = {};
+        const BOOL converted = SHGetPathFromIDListW(itemList, path);
+        CoTaskMemFree(itemList);
+        if (!converted)
+        {
+            return false;
+        }
+
+        selectedPath = path;
+        return true;
+    }
+
     // Clears local user and license state in GUI memory.
     void ClearUiAuthAndLicenseState()
     {
@@ -322,6 +506,53 @@ namespace
 
         const RpcClient::LicenseInfo& license = g_appState.licenseInfo;
         return license.hasLicense && !license.blocked && !license.expired;
+    }
+
+    // Starts an async RPC request for antivirus database metadata.
+    void StartAvDatabaseRefreshAsync(HWND hWnd, bool showErrors)
+    {
+        std::thread([hWnd, showErrors]()
+        {
+            auto* result = new AvDatabaseRefreshAsyncResult();
+            result->showErrors = showErrors;
+            result->status = RpcClient::GetAvDatabaseInfo(result->databaseInfo);
+            if (!PostMessageW(hWnd, kAvDatabaseRefreshCompletedMessage, 0, reinterpret_cast<LPARAM>(result)))
+            {
+                delete result;
+            }
+        }).detach();
+    }
+
+    // Starts an async RPC scan request for one selected file.
+    void StartFileScanAsync(HWND hWnd, const std::wstring& filePath)
+    {
+        std::thread([hWnd, filePath]()
+        {
+            auto* result = new AvScanAsyncResult();
+            result->operation = AvScanOperation::File;
+            result->scanStatus = RpcClient::ScanFile(filePath, result->fileResult);
+            result->databaseStatus = RpcClient::GetAvDatabaseInfo(result->databaseInfo);
+            if (!PostMessageW(hWnd, kAvScanCompletedMessage, 0, reinterpret_cast<LPARAM>(result)))
+            {
+                delete result;
+            }
+        }).detach();
+    }
+
+    // Starts an async RPC scan request for one selected directory.
+    void StartDirectoryScanAsync(HWND hWnd, const std::wstring& directoryPath)
+    {
+        std::thread([hWnd, directoryPath]()
+        {
+            auto* result = new AvScanAsyncResult();
+            result->operation = AvScanOperation::Directory;
+            result->scanStatus = RpcClient::ScanDirectory(directoryPath, result->directoryResult);
+            result->databaseStatus = RpcClient::GetAvDatabaseInfo(result->databaseInfo);
+            if (!PostMessageW(hWnd, kAvScanCompletedMessage, 0, reinterpret_cast<LPARAM>(result)))
+            {
+                delete result;
+            }
+        }).detach();
     }
 }
 
@@ -354,6 +585,12 @@ void InitializeAuthStateFromRpc(HWND hWnd);
 // Refreshes license state from RPC.
 RpcClient::RpcStatusCode RefreshLicenseStateFromRpc(HWND hWnd, bool showNetworkErrors);
 
+// Refreshes antivirus database state from RPC.
+void RefreshAvDatabaseInfoFromRpc(HWND hWnd, bool showErrors);
+
+// Handles refresh-database button action.
+void HandleRefreshAvDatabaseAction(HWND hWnd);
+
 // Handles login button action.
 void HandleLoginAction(HWND hWnd);
 
@@ -362,6 +599,18 @@ void HandleLogoutAction(HWND hWnd);
 
 // Handles activation button action.
 void HandleActivationAction(HWND hWnd);
+
+// Handles scan-file button action.
+void HandleScanFileAction(HWND hWnd);
+
+// Handles scan-directory button action.
+void HandleScanDirectoryAction(HWND hWnd);
+
+// Applies async database refresh result to GUI state.
+void HandleAvDatabaseRefreshCompleted(HWND hWnd, LPARAM lParam);
+
+// Applies async scan result to GUI state.
+void HandleAvScanCompleted(HWND hWnd, LPARAM lParam);
 
 // Processes all main window messages.
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -465,8 +714,8 @@ BOOL CreateMainWindowAndTray(HINSTANCE hInstance, int nCmdShow, bool startInBack
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         0,
-        780,
-        520,
+        920,
+        700,
         nullptr,
         nullptr,
         hInstance,
@@ -500,6 +749,8 @@ void CreateRuntimeControls(HWND hWnd)
     const DWORD staticStyle = WS_CHILD | WS_VISIBLE;
     const DWORD editStyle = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | WS_TABSTOP;
     const DWORD buttonStyle = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP;
+    const DWORD multilineReadOnlyEditStyle =
+        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY;
 
     g_controls.userStatusLabel = CreateWindowExW(
         0, L"STATIC", L"User: not authenticated", staticStyle, 0, 0, 0, 0, hWnd,
@@ -540,9 +791,21 @@ void CreateRuntimeControls(HWND hWnd)
         0, L"BUTTON", L"Activate", buttonStyle, 0, 0, 0, 0, hWnd,
         ControlIdToMenu(kControlActivationButton), hInst, nullptr);
 
-    g_controls.antivirusActionButton = CreateWindowExW(
-        0, L"BUTTON", L"Run antivirus action", buttonStyle, 0, 0, 0, 0, hWnd,
-        ControlIdToMenu(kControlAntivirusAction), hInst, nullptr);
+    g_controls.avDatabaseStatusLabel = CreateWindowExW(
+        0, L"STATIC", L"AV database: unknown", staticStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlAvDatabaseStatus), hInst, nullptr);
+    g_controls.refreshAvDatabaseButton = CreateWindowExW(
+        0, L"BUTTON", L"Refresh database info", buttonStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlRefreshAvDatabase), hInst, nullptr);
+    g_controls.scanFileButton = CreateWindowExW(
+        0, L"BUTTON", L"Scan file", buttonStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlScanFile), hInst, nullptr);
+    g_controls.scanDirectoryButton = CreateWindowExW(
+        0, L"BUTTON", L"Scan directory", buttonStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlScanDirectory), hInst, nullptr);
+    g_controls.scanResultsEdit = CreateWindowExW(
+        WS_EX_CLIENTEDGE, L"EDIT", L"", multilineReadOnlyEditStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlScanResults), hInst, nullptr);
 }
 
 // Arranges runtime controls according to current client size.
@@ -556,7 +819,7 @@ void LayoutRuntimeControls(HWND hWnd)
     const int right = clientRect.right - 16;
     const int width = right - left;
     const int rowHeight = 24;
-    const int blockSpacing = 12;
+    const int blockSpacing = 10;
 
     int y = top;
     MoveWindow(g_controls.userStatusLabel, left, y, width, rowHeight, TRUE);
@@ -583,7 +846,15 @@ void LayoutRuntimeControls(HWND hWnd)
     MoveWindow(g_controls.activationButton, left + width / 2 + 8, y, 140, rowHeight, TRUE);
     y += rowHeight + blockSpacing;
 
-    MoveWindow(g_controls.antivirusActionButton, left, y, 220, rowHeight, TRUE);
+    MoveWindow(g_controls.avDatabaseStatusLabel, left, y, width, rowHeight * 2, TRUE);
+    y += rowHeight * 2 + 4;
+    MoveWindow(g_controls.refreshAvDatabaseButton, left, y, 180, rowHeight, TRUE);
+    MoveWindow(g_controls.scanFileButton, left + 188, y, 120, rowHeight, TRUE);
+    MoveWindow(g_controls.scanDirectoryButton, left + 316, y, 150, rowHeight, TRUE);
+    y += rowHeight + blockSpacing;
+
+    const int resultHeight = (std::max)(rowHeight * 5, static_cast<int>(clientRect.bottom) - y - 16);
+    MoveWindow(g_controls.scanResultsEdit, left, y, width, resultHeight, TRUE);
 }
 
 // Applies current auth/license state to visible controls.
@@ -646,9 +917,23 @@ void ApplyUiState(HWND hWnd)
     SetWindowTextW(
         g_controls.antivirusStatusLabel,
         antivirusEnabled ? L"Antivirus: enabled" : L"Antivirus: blocked");
-    EnableWindow(g_controls.antivirusActionButton, antivirusEnabled ? TRUE : FALSE);
+
+    std::wstring databaseLine = L"AV database: ";
+    databaseLine += AvDatabaseLoadStatusToText(g_appState.avDatabaseInfo.loadStatus);
+    databaseLine += L", records: ";
+    databaseLine += std::to_wstring(g_appState.avDatabaseInfo.recordCount);
+    databaseLine += L", released: ";
+    databaseLine += FormatExpirationDateUtc(g_appState.avDatabaseInfo.releaseDateUtc);
+    SetWindowTextW(g_controls.avDatabaseStatusLabel, databaseLine.c_str());
+
+    SetWindowTextW(g_controls.scanResultsEdit, g_appState.scanResultText.c_str());
 
     SetWindowTextW(g_controls.infoStatusLabel, g_appState.infoMessage.c_str());
+
+    const BOOL avButtonEnabled = antivirusEnabled && !g_appState.avOperationInProgress ? TRUE : FALSE;
+    EnableWindow(g_controls.refreshAvDatabaseButton, avButtonEnabled);
+    EnableWindow(g_controls.scanFileButton, avButtonEnabled);
+    EnableWindow(g_controls.scanDirectoryButton, avButtonEnabled);
 
     const bool showLoginSection = !g_appState.authenticated;
     ShowWindow(g_controls.authTitleLabel, showLoginSection ? SW_SHOW : SW_HIDE);
@@ -692,6 +977,7 @@ void InitializeAuthStateFromRpc(HWND hWnd)
     }
 
     ApplyUiState(hWnd);
+    RefreshAvDatabaseInfoFromRpc(hWnd, false);
 }
 
 // Refreshes license state from RPC.
@@ -742,6 +1028,45 @@ RpcClient::RpcStatusCode RefreshLicenseStateFromRpc(HWND hWnd, bool showNetworkE
 
     ApplyUiState(hWnd);
     return status;
+}
+
+// Refreshes antivirus database state from RPC.
+void RefreshAvDatabaseInfoFromRpc(HWND hWnd, bool showErrors)
+{
+    RpcClient::AvDatabaseInfo databaseInfo = {};
+    const RpcClient::RpcStatusCode status = RpcClient::GetAvDatabaseInfo(databaseInfo);
+    if (status == RpcClient::RpcStatusCode::Ok)
+    {
+        g_appState.avDatabaseInfo = databaseInfo;
+    }
+    else if (showErrors)
+    {
+        g_appState.infoMessage = L"AV database info request error: " + RpcStatusToText(status);
+        MessageBoxW(hWnd, g_appState.infoMessage.c_str(), L"TrayApp", MB_OK | MB_ICONERROR);
+    }
+
+    ApplyUiState(hWnd);
+}
+
+// Handles refresh-database button action.
+void HandleRefreshAvDatabaseAction(HWND hWnd)
+{
+    if (!IsAntivirusEnabledByState())
+    {
+        g_appState.infoMessage = L"Authentication and an active license are required.";
+        ApplyUiState(hWnd);
+        return;
+    }
+
+    if (g_appState.avOperationInProgress)
+    {
+        return;
+    }
+
+    g_appState.avOperationInProgress = true;
+    g_appState.infoMessage = L"Refreshing AV database info...";
+    ApplyUiState(hWnd);
+    StartAvDatabaseRefreshAsync(hWnd, true);
 }
 
 // Handles login button action.
@@ -827,6 +1152,7 @@ void HandleActivationAction(HWND hWnd)
     {
         g_appState.infoMessage = L"License activated.";
         SetWindowTextW(g_controls.activationEdit, L"");
+        RefreshAvDatabaseInfoFromRpc(hWnd, false);
     }
     else
     {
@@ -834,6 +1160,130 @@ void HandleActivationAction(HWND hWnd)
             + L". Device: " + g_appState.deviceName + L", mac: " + g_appState.deviceMac;
         SetFocus(g_controls.activationEdit);
         MessageBoxW(hWnd, g_appState.infoMessage.c_str(), L"TrayApp", MB_OK | MB_ICONERROR);
+    }
+
+    ApplyUiState(hWnd);
+}
+
+// Handles scan-file button action.
+void HandleScanFileAction(HWND hWnd)
+{
+    if (!IsAntivirusEnabledByState())
+    {
+        g_appState.infoMessage = L"Authentication and an active license are required.";
+        ApplyUiState(hWnd);
+        return;
+    }
+
+    if (g_appState.avOperationInProgress)
+    {
+        return;
+    }
+
+    std::wstring filePath;
+    if (!SelectFileForScan(hWnd, filePath))
+    {
+        return;
+    }
+
+    g_appState.avOperationInProgress = true;
+    g_appState.infoMessage = L"Scanning file...";
+    g_appState.scanResultText = L"Scanning file:\r\n" + filePath;
+    ApplyUiState(hWnd);
+    StartFileScanAsync(hWnd, filePath);
+}
+
+// Handles scan-directory button action.
+void HandleScanDirectoryAction(HWND hWnd)
+{
+    if (!IsAntivirusEnabledByState())
+    {
+        g_appState.infoMessage = L"Authentication and an active license are required.";
+        ApplyUiState(hWnd);
+        return;
+    }
+
+    if (g_appState.avOperationInProgress)
+    {
+        return;
+    }
+
+    std::wstring directoryPath;
+    if (!SelectDirectoryForScan(hWnd, directoryPath))
+    {
+        return;
+    }
+
+    g_appState.avOperationInProgress = true;
+    g_appState.infoMessage = L"Scanning directory...";
+    g_appState.scanResultText = L"Scanning directory:\r\n" + directoryPath;
+    ApplyUiState(hWnd);
+    StartDirectoryScanAsync(hWnd, directoryPath);
+}
+
+// Applies async database refresh result to GUI state.
+void HandleAvDatabaseRefreshCompleted(HWND hWnd, LPARAM lParam)
+{
+    auto* rawResult = reinterpret_cast<AvDatabaseRefreshAsyncResult*>(lParam);
+    if (rawResult == nullptr)
+    {
+        return;
+    }
+
+    const AvDatabaseRefreshAsyncResult result = *rawResult;
+    delete rawResult;
+
+    g_appState.avOperationInProgress = false;
+    if (result.status == RpcClient::RpcStatusCode::Ok)
+    {
+        g_appState.avDatabaseInfo = result.databaseInfo;
+        g_appState.infoMessage = L"AV database info refreshed.";
+    }
+    else if (result.showErrors)
+    {
+        g_appState.infoMessage = L"AV database info request error: " + RpcStatusToText(result.status);
+        MessageBoxW(hWnd, g_appState.infoMessage.c_str(), L"TrayApp", MB_OK | MB_ICONERROR);
+    }
+
+    ApplyUiState(hWnd);
+}
+
+// Applies async scan result to GUI state.
+void HandleAvScanCompleted(HWND hWnd, LPARAM lParam)
+{
+    auto* rawResult = reinterpret_cast<AvScanAsyncResult*>(lParam);
+    if (rawResult == nullptr)
+    {
+        return;
+    }
+
+    const AvScanAsyncResult result = *rawResult;
+    delete rawResult;
+
+    g_appState.avOperationInProgress = false;
+    if (result.databaseStatus == RpcClient::RpcStatusCode::Ok)
+    {
+        g_appState.avDatabaseInfo = result.databaseInfo;
+    }
+
+    if (result.scanStatus != RpcClient::RpcStatusCode::Ok)
+    {
+        g_appState.infoMessage = result.operation == AvScanOperation::File
+            ? L"ScanFile RPC error: "
+            : L"ScanDirectory RPC error: ";
+        g_appState.infoMessage += RpcStatusToText(result.scanStatus);
+        g_appState.scanResultText = g_appState.infoMessage;
+        MessageBoxW(hWnd, g_appState.infoMessage.c_str(), L"TrayApp", MB_OK | MB_ICONERROR);
+    }
+    else if (result.operation == AvScanOperation::File)
+    {
+        g_appState.infoMessage = L"File scan completed.";
+        g_appState.scanResultText = FormatFileScanResult(result.fileResult);
+    }
+    else
+    {
+        g_appState.infoMessage = L"Directory scan completed.";
+        g_appState.scanResultText = FormatDirectoryScanResult(result.directoryResult);
     }
 
     ApplyUiState(hWnd);
@@ -851,6 +1301,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     if (message == kTrayIconCallbackMessage)
     {
         return HandleTrayIconMessage(hWnd, lParam);
+    }
+
+    if (message == kAvDatabaseRefreshCompletedMessage)
+    {
+        HandleAvDatabaseRefreshCompleted(hWnd, lParam);
+        return 0;
+    }
+
+    if (message == kAvScanCompletedMessage)
+    {
+        HandleAvScanCompleted(hWnd, lParam);
+        return 0;
     }
 
     switch (message)
@@ -904,12 +1366,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case kControlActivationButton:
             HandleActivationAction(hWnd);
             return 0;
-        case kControlAntivirusAction:
-            MessageBoxW(
-                hWnd,
-                L"Antivirus action is allowed by current auth/license state.",
-                L"TrayApp",
-                MB_OK | MB_ICONINFORMATION);
+        case kControlRefreshAvDatabase:
+            HandleRefreshAvDatabaseAction(hWnd);
+            return 0;
+        case kControlScanFile:
+            HandleScanFileAction(hWnd);
+            return 0;
+        case kControlScanDirectory:
+            HandleScanDirectoryAction(hWnd);
             return 0;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);

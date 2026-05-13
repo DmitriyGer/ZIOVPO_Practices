@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AntivirusDatabase.h"
 #include "ApiClient.h"
 #include "InMemorySession.h"
 #include "RpcContract.h"
@@ -45,8 +46,23 @@ public:
     // Выполняет периодическое обновление токенов и лицензионного тикета.
     void Tick();
 
+    // Returns current in-memory antivirus database metadata.
+    Antivirus::AvDatabaseInfo GetAntivirusDatabaseInfo();
+
+    // Scans one selected file through the antivirus engine.
+    TrayRpcStatusCode ScanFile(const std::wstring& path, TrayRpcAvFileScanResult* scanResult);
+
+    // Recursively scans one selected directory through the antivirus engine.
+    TrayRpcStatusCode ScanDirectory(const std::wstring& path, TrayRpcAvDirectoryScanResult* scanResult);
+
+    // Returns antivirus database metadata for RPC callers.
+    TrayRpcStatusCode GetAvDatabaseInfo(TrayRpcAvDatabaseInfo* databaseInfo);
+
 private:
     ServiceApiState();
+
+    // Loads demo antivirus records into the in-memory database.
+    void LoadAntivirusDatabaseLocked();
 
     // Возвращает безопасное состояние текущей лицензии без обращения к клиенту.
     TrayRpcStatusCode EnsureLicenseForAntivirusOperationLocked();
@@ -90,6 +106,7 @@ private:
     std::mutex m_mutex;
     ApiIntegration::ApiClient m_apiClient;
     ApiIntegration::InMemorySession m_session;
+    Antivirus::InMemoryAvDatabase m_avDatabase;
 
     bool m_initialized = false;
     bool m_authenticated = false;
