@@ -74,6 +74,11 @@ namespace RpcClient
         AvDatabaseLoadStatus loadStatus = AvDatabaseLoadStatus::NotLoaded;
         std::wstring source;
         std::wstring lastUpdateStatus;
+        std::wstring verifierName;
+        unsigned long long skippedRecordCount = 0;
+        std::optional<std::chrono::system_clock::time_point> lastManifestVerifiedUtc;
+        bool schedulerEnabled = false;
+        bool monitoringEnabled = false;
     };
 
     struct AvFileScanResult
@@ -127,6 +132,9 @@ namespace RpcClient
 
     // Recursively scans one selected directory through TrayService RPC.
     RpcStatusCode ScanDirectory(const std::wstring& path, AvDirectoryScanResult& scanResult);
+
+    // Scans all fixed local drives through TrayService RPC.
+    RpcStatusCode ScanFixedDrives(AvDirectoryScanResult& scanResult);
 
     // Returns in-memory antivirus database metadata through TrayService RPC.
     RpcStatusCode GetAvDatabaseInfo(AvDatabaseInfo& databaseInfo);

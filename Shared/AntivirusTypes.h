@@ -34,7 +34,8 @@ namespace Antivirus
         Main = 1,
         Backup = 2,
         Default = 3,
-        Updated = 4
+        Updated = 4,
+        ForcedUpdate = 5
     };
 
     struct AvSignatureRecord
@@ -43,6 +44,7 @@ namespace Antivirus
         uint64_t ObjectSignaturePrefix = 0;
         uint32_t ObjectSignatureLength = 0;
         std::vector<uint8_t> ObjectSignature;
+        std::vector<uint8_t> FullSignature;
         uint64_t OffsetBegin = 0;
         uint64_t OffsetEnd = 0;
         AvObjectType ObjectType = AvObjectType::Unknown;
@@ -57,6 +59,11 @@ namespace Antivirus
         AvDatabaseLoadStatus LoadStatus = AvDatabaseLoadStatus::NotLoaded;
         AvDatabaseFileSource Source = AvDatabaseFileSource::None;
         std::wstring LastUpdateStatus;
+        std::wstring VerifierName;
+        size_t SkippedRecordCount = 0;
+        std::chrono::system_clock::time_point LastManifestVerifiedUtc = {};
+        bool SchedulerEnabled = false;
+        bool MonitoringEnabled = false;
     };
 
     struct AvScanResult

@@ -12,6 +12,7 @@ set(ANTIVIRUS_SHARED_SOURCES
     Shared/AntivirusScanner.cpp
     Shared/AntivirusSignatureVerifier.cpp
     Shared/AntivirusTypes.cpp
+    Shared/AntivirusUpdateClient.cpp
     Shared/ByteStream.cpp
 )
 
@@ -53,7 +54,7 @@ target_include_directories(AntivirusEngineTests PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(AntivirusEngineTests PRIVATE Winhttp Bcrypt)
+    target_link_libraries(AntivirusEngineTests PRIVATE Winhttp Bcrypt Crypt32 Advapi32)
 endif()
 
 enable_testing()

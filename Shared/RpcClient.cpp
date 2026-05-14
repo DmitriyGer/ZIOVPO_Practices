@@ -329,6 +329,25 @@ namespace
         return isSuccess;
     }
 
+    bool RpcCallScanFixedDrives(
+        RPC_BINDING_HANDLE bindingHandle,
+        TrayRpcAvDirectoryScanResult* scanResult,
+        TrayRpcStatusCode* statusCode)
+    {
+        bool isSuccess = true;
+        RpcTryExcept
+        {
+            *statusCode = ::ScanFixedDrives(bindingHandle, scanResult);
+        }
+        RpcExcept(1)
+        {
+            isSuccess = false;
+        }
+        RpcEndExcept;
+
+        return isSuccess;
+    }
+
     bool RpcCallGetAvDatabaseInfo(
         RPC_BINDING_HANDLE bindingHandle,
         TrayRpcAvDatabaseInfo* databaseInfo,
@@ -483,6 +502,10 @@ namespace
         databaseInfo.loadStatus = FromRpcAvDatabaseLoadStatus(rpcInfo.loadStatus);
         databaseInfo.source = rpcInfo.source;
         databaseInfo.lastUpdateStatus = rpcInfo.lastUpdateStatus;
+        databaseInfo.verifierName = rpcInfo.verifierName;
+        databaseInfo.skippedRecordCount = static_cast<unsigned long long>(rpcInfo.skippedRecordCount);
+        databaseInfo.schedulerEnabled = rpcInfo.schedulerEnabled != 0;
+        databaseInfo.monitoringEnabled = rpcInfo.monitoringEnabled != 0;
         if (rpcInfo.hasReleaseDate != 0)
         {
             databaseInfo.releaseDateUtc =
@@ -493,6 +516,12 @@ namespace
         {
             databaseInfo.lastSuccessfulLoadUtc =
                 std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcInfo.lastSuccessfulLoadEpochSeconds));
+        }
+
+        if (rpcInfo.hasLastManifestVerified != 0)
+        {
+            databaseInfo.lastManifestVerifiedUtc =
+                std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcInfo.lastManifestVerifiedEpochSeconds));
         }
     }
 }
@@ -727,6 +756,28 @@ RpcClient::RpcStatusCode RpcClient::ScanDirectory(
     TrayRpcAvDirectoryScanResult rpcResult = {};
     TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
     if (!RpcCallScanDirectory(binding.Get(), const_cast<wchar_t*>(path.c_str()), &rpcResult, &rpcStatus))
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    FillAvDirectoryScanResult(rpcResult, scanResult);
+    return FromRpcStatus(rpcStatus);
+}
+
+RpcClient::RpcStatusCode RpcClient::ScanFixedDrives(AvDirectoryScanResult& scanResult)
+{
+    // Calls RPC method for scanning all local fixed drives.
+    RpcBinding binding;
+    if (!binding.Create())
+    {
+        scanResult = {};
+        return RpcStatusCode::TransportError;
+    }
+
+    TrayRpcAvDirectoryScanResult rpcResult = {};
+    TrayRpcStatusCode rpcStatus = TRAY_RPC_SERVER_ERROR;
+    if (!RpcCallScanFixedDrives(binding.Get(), &rpcResult, &rpcStatus))
     {
         scanResult = {};
         return RpcStatusCode::TransportError;

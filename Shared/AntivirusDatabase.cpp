@@ -34,6 +34,11 @@ namespace Antivirus
         m_loadStatus = AvDatabaseLoadStatus::NotLoaded;
         m_source = AvDatabaseFileSource::None;
         m_lastUpdateStatus.clear();
+        m_verifierName.clear();
+        m_skippedRecordCount = 0;
+        m_lastManifestVerifiedUtc = {};
+        m_schedulerEnabled = false;
+        m_monitoringEnabled = false;
     }
 
     bool InMemoryAvDatabase::AddSignature(
@@ -68,6 +73,7 @@ namespace Antivirus
         }
 
         record.ObjectSignature = ToLittleEndianBytes(CalculateFnv1a64(signatureBytes.data(), signatureBytes.size()));
+        record.FullSignature = signatureBytes;
         record.OffsetBegin = offsetBegin;
         record.OffsetEnd = offsetEnd;
         record.ObjectType = objectType;
@@ -140,15 +146,33 @@ namespace Antivirus
     void InMemoryAvDatabase::SetLoadMetadata(
         AvDatabaseFileSource source,
         std::chrono::system_clock::time_point lastSuccessfulLoadUtc,
-        const std::wstring& lastUpdateStatus)
+        const std::wstring& lastUpdateStatus,
+        const std::wstring& verifierName,
+        size_t skippedRecordCount,
+        std::chrono::system_clock::time_point lastManifestVerifiedUtc)
     {
         m_source = source;
         m_lastSuccessfulLoadUtc = lastSuccessfulLoadUtc;
         m_lastUpdateStatus = lastUpdateStatus;
+        if (!verifierName.empty())
+        {
+            m_verifierName = verifierName;
+        }
+        m_skippedRecordCount = skippedRecordCount;
+        if (lastManifestVerifiedUtc != std::chrono::system_clock::time_point{})
+        {
+            m_lastManifestVerifiedUtc = lastManifestVerifiedUtc;
+        }
         if (m_recordCount > 0)
         {
             m_loadStatus = AvDatabaseLoadStatus::Loaded;
         }
+    }
+
+    void InMemoryAvDatabase::SetRuntimeFeatureStatus(bool schedulerEnabled, bool monitoringEnabled)
+    {
+        m_schedulerEnabled = schedulerEnabled;
+        m_monitoringEnabled = monitoringEnabled;
     }
 
     AvDatabaseInfo InMemoryAvDatabase::GetInfo() const
@@ -160,6 +184,11 @@ namespace Antivirus
         info.LoadStatus = m_loadStatus;
         info.Source = m_source;
         info.LastUpdateStatus = m_lastUpdateStatus;
+        info.VerifierName = m_verifierName;
+        info.SkippedRecordCount = m_skippedRecordCount;
+        info.LastManifestVerifiedUtc = m_lastManifestVerifiedUtc;
+        info.SchedulerEnabled = m_schedulerEnabled;
+        info.MonitoringEnabled = m_monitoringEnabled;
         return info;
     }
 

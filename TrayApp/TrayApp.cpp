@@ -59,6 +59,7 @@ namespace
     constexpr int kControlScanFile = 4015;
     constexpr int kControlScanDirectory = 4016;
     constexpr int kControlScanResults = 4017;
+    constexpr int kControlScanFixedDrives = 4018;
 
     // Converts integer control id to HMENU for CreateWindowEx.
     HMENU ControlIdToMenu(int controlId)
@@ -87,6 +88,7 @@ namespace
         HWND refreshAvDatabaseButton = nullptr;
         HWND scanFileButton = nullptr;
         HWND scanDirectoryButton = nullptr;
+        HWND scanFixedDrivesButton = nullptr;
         HWND scanResultsEdit = nullptr;
     };
 
@@ -107,7 +109,8 @@ namespace
     enum class AvScanOperation
     {
         File = 0,
-        Directory = 1
+        Directory = 1,
+        FixedDrives = 2
     };
 
     struct AvDatabaseRefreshAsyncResult
@@ -554,6 +557,21 @@ namespace
             }
         }).detach();
     }
+
+    void StartFixedDrivesScanAsync(HWND hWnd)
+    {
+        std::thread([hWnd]()
+        {
+            auto* result = new AvScanAsyncResult();
+            result->operation = AvScanOperation::FixedDrives;
+            result->scanStatus = RpcClient::ScanFixedDrives(result->directoryResult);
+            result->databaseStatus = RpcClient::GetAvDatabaseInfo(result->databaseInfo);
+            if (!PostMessageW(hWnd, kAvScanCompletedMessage, 0, reinterpret_cast<LPARAM>(result)))
+            {
+                delete result;
+            }
+        }).detach();
+    }
 }
 
 HINSTANCE hInst;
@@ -803,6 +821,9 @@ void CreateRuntimeControls(HWND hWnd)
     g_controls.scanDirectoryButton = CreateWindowExW(
         0, L"BUTTON", L"Scan directory", buttonStyle, 0, 0, 0, 0, hWnd,
         ControlIdToMenu(kControlScanDirectory), hInst, nullptr);
+    g_controls.scanFixedDrivesButton = CreateWindowExW(
+        0, L"BUTTON", L"Scan fixed drives", buttonStyle, 0, 0, 0, 0, hWnd,
+        ControlIdToMenu(kControlScanFixedDrives), hInst, nullptr);
     g_controls.scanResultsEdit = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"", multilineReadOnlyEditStyle, 0, 0, 0, 0, hWnd,
         ControlIdToMenu(kControlScanResults), hInst, nullptr);
@@ -851,6 +872,7 @@ void LayoutRuntimeControls(HWND hWnd)
     MoveWindow(g_controls.refreshAvDatabaseButton, left, y, 180, rowHeight, TRUE);
     MoveWindow(g_controls.scanFileButton, left + 188, y, 120, rowHeight, TRUE);
     MoveWindow(g_controls.scanDirectoryButton, left + 316, y, 150, rowHeight, TRUE);
+    MoveWindow(g_controls.scanFixedDrivesButton, left + 474, y, 160, rowHeight, TRUE);
     y += rowHeight + blockSpacing;
 
     const int resultHeight = (std::max)(rowHeight * 5, static_cast<int>(clientRect.bottom) - y - 16);
@@ -928,6 +950,16 @@ void ApplyUiState(HWND hWnd)
     databaseLine += g_appState.avDatabaseInfo.source.empty() ? L"unknown" : g_appState.avDatabaseInfo.source;
     databaseLine += L", loaded: ";
     databaseLine += FormatExpirationDateUtc(g_appState.avDatabaseInfo.lastSuccessfulLoadUtc);
+    databaseLine += L", manifest: ";
+    databaseLine += FormatExpirationDateUtc(g_appState.avDatabaseInfo.lastManifestVerifiedUtc);
+    databaseLine += L", skipped: ";
+    databaseLine += std::to_wstring(g_appState.avDatabaseInfo.skippedRecordCount);
+    databaseLine += L", verifier: ";
+    databaseLine += g_appState.avDatabaseInfo.verifierName.empty() ? L"unknown" : g_appState.avDatabaseInfo.verifierName;
+    databaseLine += L", scheduler: ";
+    databaseLine += g_appState.avDatabaseInfo.schedulerEnabled ? L"enabled" : L"disabled";
+    databaseLine += L", monitoring: ";
+    databaseLine += g_appState.avDatabaseInfo.monitoringEnabled ? L"enabled" : L"disabled";
     if (!g_appState.avDatabaseInfo.lastUpdateStatus.empty())
     {
         databaseLine += L", update: ";
@@ -943,6 +975,7 @@ void ApplyUiState(HWND hWnd)
     EnableWindow(g_controls.refreshAvDatabaseButton, avButtonEnabled);
     EnableWindow(g_controls.scanFileButton, avButtonEnabled);
     EnableWindow(g_controls.scanDirectoryButton, avButtonEnabled);
+    EnableWindow(g_controls.scanFixedDrivesButton, avButtonEnabled);
 
     const bool showLoginSection = !g_appState.authenticated;
     ShowWindow(g_controls.authTitleLabel, showLoginSection ? SW_SHOW : SW_HIDE);
@@ -1230,6 +1263,28 @@ void HandleScanDirectoryAction(HWND hWnd)
     StartDirectoryScanAsync(hWnd, directoryPath);
 }
 
+// Handles scan-fixed-drives button action.
+void HandleScanFixedDrivesAction(HWND hWnd)
+{
+    if (!IsAntivirusEnabledByState())
+    {
+        g_appState.infoMessage = L"Authentication and an active license are required.";
+        ApplyUiState(hWnd);
+        return;
+    }
+
+    if (g_appState.avOperationInProgress)
+    {
+        return;
+    }
+
+    g_appState.avOperationInProgress = true;
+    g_appState.infoMessage = L"Scanning fixed drives...";
+    g_appState.scanResultText = L"Scanning all local fixed drives.";
+    ApplyUiState(hWnd);
+    StartFixedDrivesScanAsync(hWnd);
+}
+
 // Applies async database refresh result to GUI state.
 void HandleAvDatabaseRefreshCompleted(HWND hWnd, LPARAM lParam)
 {
@@ -1277,9 +1332,18 @@ void HandleAvScanCompleted(HWND hWnd, LPARAM lParam)
 
     if (result.scanStatus != RpcClient::RpcStatusCode::Ok)
     {
-        g_appState.infoMessage = result.operation == AvScanOperation::File
-            ? L"ScanFile RPC error: "
-            : L"ScanDirectory RPC error: ";
+        if (result.operation == AvScanOperation::File)
+        {
+            g_appState.infoMessage = L"ScanFile RPC error: ";
+        }
+        else if (result.operation == AvScanOperation::FixedDrives)
+        {
+            g_appState.infoMessage = L"ScanFixedDrives RPC error: ";
+        }
+        else
+        {
+            g_appState.infoMessage = L"ScanDirectory RPC error: ";
+        }
         g_appState.infoMessage += RpcStatusToText(result.scanStatus);
         g_appState.scanResultText = g_appState.infoMessage;
         MessageBoxW(hWnd, g_appState.infoMessage.c_str(), L"TrayApp", MB_OK | MB_ICONERROR);
@@ -1291,7 +1355,9 @@ void HandleAvScanCompleted(HWND hWnd, LPARAM lParam)
     }
     else
     {
-        g_appState.infoMessage = L"Directory scan completed.";
+        g_appState.infoMessage = result.operation == AvScanOperation::FixedDrives
+            ? L"Fixed drives scan completed."
+            : L"Directory scan completed.";
         g_appState.scanResultText = FormatDirectoryScanResult(result.directoryResult);
     }
 
@@ -1383,6 +1449,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             return 0;
         case kControlScanDirectory:
             HandleScanDirectoryAction(hWnd);
+            return 0;
+        case kControlScanFixedDrives:
+            HandleScanFixedDrivesAction(hWnd);
             return 0;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);

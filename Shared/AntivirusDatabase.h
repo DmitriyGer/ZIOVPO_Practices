@@ -34,7 +34,13 @@ namespace Antivirus
         void SetLoadMetadata(
             AvDatabaseFileSource source,
             std::chrono::system_clock::time_point lastSuccessfulLoadUtc,
-            const std::wstring& lastUpdateStatus);
+            const std::wstring& lastUpdateStatus,
+            const std::wstring& verifierName = L"",
+            size_t skippedRecordCount = 0,
+            std::chrono::system_clock::time_point lastManifestVerifiedUtc = {});
+
+        // Stores runtime service feature status in database metadata.
+        void SetRuntimeFeatureStatus(bool schedulerEnabled, bool monitoringEnabled);
 
         // Returns release date and current record count.
         AvDatabaseInfo GetInfo() const;
@@ -50,5 +56,10 @@ namespace Antivirus
         AvDatabaseLoadStatus m_loadStatus = AvDatabaseLoadStatus::NotLoaded;
         AvDatabaseFileSource m_source = AvDatabaseFileSource::None;
         std::wstring m_lastUpdateStatus;
+        std::wstring m_verifierName;
+        size_t m_skippedRecordCount = 0;
+        std::chrono::system_clock::time_point m_lastManifestVerifiedUtc = {};
+        bool m_schedulerEnabled = false;
+        bool m_monitoringEnabled = false;
     };
 }

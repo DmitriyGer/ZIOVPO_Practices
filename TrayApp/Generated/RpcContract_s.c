@@ -6,11 +6,11 @@
  /* File created by MIDL compiler version 8.01.0628 */
 /* at Tue Jan 19 06:14:07 2038
  */
-/* Compiler settings for ..\Shared\RpcContract.idl:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0628 
-    protocol : all , ms_ext, app_config, c_ext, robust
-    error checks: allocation ref bounds_check enum stub_data 
-    VC __declspec() decoration level: 
+/* Compiler settings for Shared\RpcContract.idl:
+    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0628
+    protocol : dce , ms_ext, c_ext, robust
+    error checks: allocation ref bounds_check enum stub_data
+    VC __declspec() decoration level:
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
          DECLSPEC_UUID(), MIDL_INTERFACE()
 */
@@ -19,6 +19,7 @@
 #if defined(_M_AMD64)
 
 
+#pragma warning( disable: 4049 )  /* more than 64k source lines */
 #if _MSC_VER >= 1200
 #pragma warning(push)
 #endif
@@ -30,11 +31,11 @@
 #include <string.h>
 #include "RpcContract.h"
 
-#define TYPE_FORMAT_STRING_SIZE   187                               
-#define PROC_FORMAT_STRING_SIZE   463                               
-#define EXPR_FORMAT_STRING_SIZE   1                                 
-#define TRANSMIT_AS_TABLE_SIZE    0            
-#define WIRE_MARSHAL_TABLE_SIZE   0            
+#define TYPE_FORMAT_STRING_SIZE   197
+#define PROC_FORMAT_STRING_SIZE   505
+#define EXPR_FORMAT_STRING_SIZE   1
+#define TRANSMIT_AS_TABLE_SIZE    0
+#define WIRE_MARSHAL_TABLE_SIZE   0
 
 typedef struct _RpcContract_MIDL_TYPE_FORMAT_STRING
     {
@@ -55,11 +56,8 @@ typedef struct _RpcContract_MIDL_EXPR_FORMAT_STRING
     } RpcContract_MIDL_EXPR_FORMAT_STRING;
 
 
-static const RPC_SYNTAX_IDENTIFIER  _RpcTransferSyntax_2_0 = 
+static const RPC_SYNTAX_IDENTIFIER  _RpcTransferSyntax_2_0 =
 {{0x8A885D04,0x1CEB,0x11C9,{0x9F,0xE8,0x08,0x00,0x2B,0x10,0x48,0x60}},{2,0}};
-
-static const RPC_SYNTAX_IDENTIFIER  _NDR64_RpcTransferSyntax_1_0 = 
-{{0x71710533,0xbeba,0x4937,{0x83,0x19,0xb5,0xdb,0xef,0x9c,0xcc,0x36}},{1,0}};
 
 #if defined(_CONTROL_FLOW_GUARD_XFG)
 #define XFG_TRAMPOLINES(ObjectType)\
@@ -115,7 +113,6 @@ ObjectType ## _unbind((ObjectType) pObject, ServerHandle);\
 #define XFG_TRAMPOLINE_FPTR_DEPENDENT_SYMBOL(Symbol) Symbol
 #endif
 
-
 extern const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatString;
 extern const RpcContract_MIDL_PROC_FORMAT_STRING RpcContract__MIDL_ProcFormatString;
 extern const RpcContract_MIDL_EXPR_FORMAT_STRING RpcContract__MIDL_ExprFormatString;
@@ -125,7 +122,7 @@ extern const RpcContract_MIDL_EXPR_FORMAT_STRING RpcContract__MIDL_ExprFormatStr
 
 
 extern const MIDL_SERVER_INFO TrayRpcControl_ServerInfo;
-static const RPC_PROTSEQ_ENDPOINT __RpcProtseqEndpoint[] = 
+static const RPC_PROTSEQ_ENDPOINT __RpcProtseqEndpoint[] =
     {
     {(unsigned char *) "ncalrpc", (unsigned char *) "TrayServiceControlEndpoint"}
     };
@@ -143,7 +140,7 @@ static const RPC_SERVER_INTERFACE TrayRpcControl___RpcServerInterface =
     (RPC_PROTSEQ_ENDPOINT *)__RpcProtseqEndpoint,
     0,
     &TrayRpcControl_ServerInfo,
-    0x06000000
+    0x04000000
     };
 RPC_IF_HANDLE TrayRpcControl_v1_0_s_ifspec = (RPC_IF_HANDLE)& TrayRpcControl___RpcServerInterface;
 #ifdef __cplusplus
@@ -515,7 +512,7 @@ static const RpcContract_MIDL_PROC_FORMAT_STRING RpcContract__MIDL_ProcFormatStr
 /* 418 */	0xd,		/* FC_ENUM16 */
 			0x0,		/* 0 */
 
-	/* Procedure GetAvDatabaseInfo */
+	/* Procedure ScanFixedDrives */
 
 /* 420 */	0x0,		/* 0 */
 			0x48,		/* Old Flags:  */
@@ -536,17 +533,51 @@ static const RpcContract_MIDL_PROC_FORMAT_STRING RpcContract__MIDL_ProcFormatStr
 /* 446 */	NdrFcShort( 0x0 ),	/* 0 */
 /* 448 */	NdrFcShort( 0x0 ),	/* 0 */
 
-	/* Parameter databaseInfo */
+	/* Parameter scanResult */
 
 /* 450 */	NdrFcShort( 0x113 ),	/* Flags:  must size, must free, out, simple ref, */
 /* 452 */	NdrFcShort( 0x8 ),	/* X64 Stack size/offset = 8 */
-/* 454 */	NdrFcShort( 0xa0 ),	/* Type Offset=160 */
+/* 454 */	NdrFcShort( 0x7c ),	/* Type Offset=124 */
 
 	/* Return value */
 
 /* 456 */	NdrFcShort( 0x70 ),	/* Flags:  out, return, base type, */
 /* 458 */	NdrFcShort( 0x10 ),	/* X64 Stack size/offset = 16 */
 /* 460 */	0xd,		/* FC_ENUM16 */
+			0x0,		/* 0 */
+
+	/* Procedure GetAvDatabaseInfo */
+
+/* 462 */	0x0,		/* 0 */
+			0x48,		/* Old Flags:  */
+/* 464 */	NdrFcLong( 0x0 ),	/* 0 */
+/* 468 */	NdrFcShort( 0xa ),	/* 10 */
+/* 470 */	NdrFcShort( 0x18 ),	/* X64 Stack size/offset = 24 */
+/* 472 */	0x32,		/* FC_BIND_PRIMITIVE */
+			0x0,		/* 0 */
+/* 474 */	NdrFcShort( 0x0 ),	/* X64 Stack size/offset = 0 */
+/* 476 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 478 */	NdrFcShort( 0x6 ),	/* 6 */
+/* 480 */	0x45,		/* Oi2 Flags:  srv must size, has return, has ext, */
+			0x2,		/* 2 */
+/* 482 */	0xa,		/* 10 */
+			0x1,		/* Ext Flags:  new corr desc, */
+/* 484 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 486 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 488 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 490 */	NdrFcShort( 0x0 ),	/* 0 */
+
+	/* Parameter databaseInfo */
+
+/* 492 */	NdrFcShort( 0x113 ),	/* Flags:  must size, must free, out, simple ref, */
+/* 494 */	NdrFcShort( 0x8 ),	/* X64 Stack size/offset = 8 */
+/* 496 */	NdrFcShort( 0xa0 ),	/* Type Offset=160 */
+
+	/* Return value */
+
+/* 498 */	NdrFcShort( 0x70 ),	/* Flags:  out, return, base type, */
+/* 500 */	NdrFcShort( 0x10 ),	/* X64 Stack size/offset = 16 */
+/* 502 */	0xd,		/* FC_ENUM16 */
 			0x0,		/* 0 */
 
 			0x0
@@ -558,16 +589,16 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
         0,
         {
 			NdrFcShort( 0x0 ),	/* 0 */
-/*  2 */	
+/*  2 */
 			0x11, 0x0,	/* FC_RP */
 /*  4 */	NdrFcShort( 0x8 ),	/* Offset= 8 (12) */
-/*  6 */	
+/*  6 */
 			0x1d,		/* FC_SMFARRAY */
 			0x1,		/* 1 */
 /*  8 */	NdrFcShort( 0x100 ),	/* 256 */
 /* 10 */	0x5,		/* FC_WCHAR */
 			0x5b,		/* FC_END */
-/* 12 */	
+/* 12 */
 			0x15,		/* FC_STRUCT */
 			0x7,		/* 7 */
 /* 14 */	NdrFcShort( 0x110 ),	/* 272 */
@@ -578,15 +609,15 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 /* 20 */	0x0,		/* 0 */
 			NdrFcShort( 0xfff1 ),	/* Offset= -15 (6) */
 			0x5b,		/* FC_END */
-/* 24 */	
+/* 24 */
 			0x11, 0x8,	/* FC_RP [simple_pointer] */
-/* 26 */	
+/* 26 */
 			0x25,		/* FC_C_WSTRING */
 			0x5c,		/* FC_PAD */
-/* 28 */	
+/* 28 */
 			0x11, 0x4,	/* FC_RP [alloced_on_stack] */
 /* 30 */	NdrFcShort( 0x2 ),	/* Offset= 2 (32) */
-/* 32 */	
+/* 32 */
 			0x1a,		/* FC_BOGUS_STRUCT */
 			0x7,		/* 7 */
 /* 34 */	NdrFcShort( 0x20 ),	/* 32 */
@@ -600,28 +631,28 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 			0xd,		/* FC_ENUM16 */
 /* 46 */	0x40,		/* FC_STRUCTPAD4 */
 			0x5b,		/* FC_END */
-/* 48 */	
+/* 48 */
 			0x11, 0x0,	/* FC_RP */
 /* 50 */	NdrFcShort( 0x14 ),	/* Offset= 20 (70) */
-/* 52 */	
+/* 52 */
 			0x1d,		/* FC_SMFARRAY */
 			0x1,		/* 1 */
 /* 54 */	NdrFcShort( 0x208 ),	/* 520 */
 /* 56 */	0x5,		/* FC_WCHAR */
 			0x5b,		/* FC_END */
-/* 58 */	
+/* 58 */
 			0x1d,		/* FC_SMFARRAY */
 			0x1,		/* 1 */
 /* 60 */	NdrFcShort( 0x80 ),	/* 128 */
 /* 62 */	0x5,		/* FC_WCHAR */
 			0x5b,		/* FC_END */
-/* 64 */	
+/* 64 */
 			0x1d,		/* FC_SMFARRAY */
 			0x1,		/* 1 */
 /* 66 */	NdrFcShort( 0x200 ),	/* 512 */
 /* 68 */	0x5,		/* FC_WCHAR */
 			0x5b,		/* FC_END */
-/* 70 */	
+/* 70 */
 			0x1a,		/* FC_BOGUS_STRUCT */
 			0x7,		/* 7 */
 /* 72 */	NdrFcShort( 0x518 ),	/* 1304 */
@@ -643,10 +674,10 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 /* 94 */	0x0,		/* 0 */
 			NdrFcShort( 0xffe1 ),	/* Offset= -31 (64) */
 			0x5b,		/* FC_END */
-/* 98 */	
+/* 98 */
 			0x11, 0x0,	/* FC_RP */
 /* 100 */	NdrFcShort( 0x18 ),	/* Offset= 24 (124) */
-/* 102 */	
+/* 102 */
 			0x21,		/* FC_BOGUS_ARRAY */
 			0x7,		/* 7 */
 /* 104 */	NdrFcShort( 0x20 ),	/* 32 */
@@ -659,7 +690,7 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 /* 120 */	NdrFcShort( 0xffce ),	/* Offset= -50 (70) */
 /* 122 */	0x5c,		/* FC_PAD */
 			0x5b,		/* FC_END */
-/* 124 */	
+/* 124 */
 			0x1a,		/* FC_BOGUS_STRUCT */
 			0x7,		/* 7 */
 /* 126 */	NdrFcShort( 0xa728 ),	/* -22744 */
@@ -680,19 +711,19 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 /* 146 */	0x0,		/* 0 */
 			NdrFcShort( 0xffad ),	/* Offset= -83 (64) */
 			0x5b,		/* FC_END */
-/* 150 */	
+/* 150 */
 			0x11, 0x0,	/* FC_RP */
 /* 152 */	NdrFcShort( 0x8 ),	/* Offset= 8 (160) */
-/* 154 */	
+/* 154 */
 			0x1d,		/* FC_SMFARRAY */
 			0x1,		/* 1 */
 /* 156 */	NdrFcShort( 0x40 ),	/* 64 */
 /* 158 */	0x5,		/* FC_WCHAR */
 			0x5b,		/* FC_END */
-/* 160 */	
+/* 160 */
 			0x1a,		/* FC_BOGUS_STRUCT */
 			0x7,		/* 7 */
-/* 162 */	NdrFcShort( 0x170 ),	/* 368 */
+/* 162 */	NdrFcShort( 0x210 ),	/* 528 */
 /* 164 */	NdrFcShort( 0x0 ),	/* 0 */
 /* 166 */	NdrFcShort( 0x0 ),	/* Offset= 0 (166) */
 /* 168 */	0x8,		/* FC_LONG */
@@ -709,7 +740,16 @@ static const RpcContract_MIDL_TYPE_FORMAT_STRING RpcContract__MIDL_TypeFormatStr
 /* 180 */	0x4c,		/* FC_EMBEDDED_COMPLEX */
 			0x0,		/* 0 */
 /* 182 */	NdrFcShort( 0xff50 ),	/* Offset= -176 (6) */
-/* 184 */	0x40,		/* FC_STRUCTPAD4 */
+/* 184 */	0x4c,		/* FC_EMBEDDED_COMPLEX */
+			0x0,		/* 0 */
+/* 186 */	NdrFcShort( 0xff80 ),	/* Offset= -128 (58) */
+/* 188 */	0x40,		/* FC_STRUCTPAD4 */
+			0xb,		/* FC_HYPER */
+/* 190 */	0x8,		/* FC_LONG */
+			0x40,		/* FC_STRUCTPAD4 */
+/* 192 */	0xb,		/* FC_HYPER */
+			0x8,		/* FC_LONG */
+/* 194 */	0x8,		/* FC_LONG */
 			0x5b,		/* FC_END */
 
 			0x0
@@ -727,9 +767,40 @@ static const unsigned short TrayRpcControl_FormatStringOffsetTable[] =
     258,
     324,
     372,
-    420
+    420,
+    462
     };
 
+
+#ifdef __cplusplus
+namespace {
+#endif
+static const MIDL_STUB_DESC TrayRpcControl_StubDesc =
+    {
+    (void *)& TrayRpcControl___RpcServerInterface,
+    MIDL_user_allocate,
+    MIDL_user_free,
+    0,
+    0,
+    0,
+    0,
+    0,
+    RpcContract__MIDL_TypeFormatString.Format,
+    1, /* -error bounds_check flag */
+    0x50002, /* Ndr library version */
+    0,
+    0x8010274, /* MIDL Version 8.1.628 */
+    0,
+    0,
+    0,  /* notify & notify_flag routine table */
+    0x1, /* MIDL flag */
+    0, /* cs routines */
+    0,   /* proxy/server info */
+    0
+    };
+#ifdef __cplusplus
+}
+#endif
 
 static const RPC_DISPATCH_FUNCTION TrayRpcControl_table[] =
     {
@@ -743,1535 +814,16 @@ static const RPC_DISPATCH_FUNCTION TrayRpcControl_table[] =
     NdrServerCall2,
     NdrServerCall2,
     NdrServerCall2,
+    NdrServerCall2,
     0
     };
-static const RPC_DISPATCH_TABLE TrayRpcControl_v1_0_DispatchTable = 
+static const RPC_DISPATCH_TABLE TrayRpcControl_v1_0_DispatchTable =
     {
-    10,
+    11,
     (RPC_DISPATCH_FUNCTION*)TrayRpcControl_table
     };
 
-
-#endif /* defined(_M_AMD64)*/
-
-
-
-/* this ALWAYS GENERATED file contains the RPC server stubs */
-
-
- /* File created by MIDL compiler version 8.01.0628 */
-/* at Tue Jan 19 06:14:07 2038
- */
-/* Compiler settings for ..\Shared\RpcContract.idl:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0628 
-    protocol : all , ms_ext, app_config, c_ext, robust
-    error checks: allocation ref bounds_check enum stub_data 
-    VC __declspec() decoration level: 
-         __declspec(uuid()), __declspec(selectany), __declspec(novtable)
-         DECLSPEC_UUID(), MIDL_INTERFACE()
-*/
-/* @@MIDL_FILE_HEADING(  ) */
-
-#if defined(_M_AMD64)
-
-
-
-
-#if !defined(__RPC_WIN64__)
-#error  Invalid build platform for this stub.
-#endif
-
-
-#include "ndr64types.h"
-#include "pshpack8.h"
-#ifdef __cplusplus
-namespace {
-#endif
-
-
-typedef 
-NDR64_FORMAT_CHAR
-__midl_frag53_t;
-extern const __midl_frag53_t __midl_frag53;
-
-typedef 
-struct 
-{
-    struct _NDR64_FIX_ARRAY_HEADER_FORMAT frag1;
-}
-__midl_frag52_t;
-extern const __midl_frag52_t __midl_frag52;
-
-typedef 
-struct 
-{
-    struct _NDR64_FIX_ARRAY_HEADER_FORMAT frag1;
-}
-__midl_frag51_t;
-extern const __midl_frag51_t __midl_frag51;
-
-typedef 
-struct 
-{
-    struct _NDR64_BOGUS_STRUCTURE_HEADER_FORMAT frag1;
-    struct 
-    {
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag1;
-        struct _NDR64_MEMPAD_FORMAT frag2;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag3;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag4;
-        struct _NDR64_MEMPAD_FORMAT frag5;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag6;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag7;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag8;
-        struct _NDR64_EMBEDDED_COMPLEX_FORMAT frag9;
-        struct _NDR64_EMBEDDED_COMPLEX_FORMAT frag10;
-        struct _NDR64_MEMPAD_FORMAT frag11;
-        struct _NDR64_BUFFER_ALIGN_FORMAT frag12;
-        struct _NDR64_SIMPLE_MEMBER_FORMAT frag13;
-    } frag2;
-}
-__midl_frag50_t;
-extern const __midl_frag50_t __midl_frag50;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag49_t;
-extern const __midl_frag49_t __midl_frag49;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-}
-__midl_frag48_t;
-extern const __midl_frag48_t __midl_frag48;
-
-typedef 
-struct 
-{
-    struct _NDR64_STRUCTURE_HEADER_FORMAT frag1;
-}
-__midl_frag46_t;
-extern const __midl_frag46_t __midl_frag46;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag45_t;
-extern const __midl_frag45_t __midl_frag45;
-
-typedef 
-struct _NDR64_CONFORMANT_STRING_FORMAT
-__midl_frag44_t;
-extern const __midl_frag44_t __midl_frag44;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag43_t;
-extern const __midl_frag43_t __midl_frag43;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-    struct _NDR64_PARAM_FORMAT frag5;
-}
-__midl_frag42_t;
-extern const __midl_frag42_t __midl_frag42;
-
-typedef 
-struct 
-{
-    struct _NDR64_STRUCTURE_HEADER_FORMAT frag1;
-}
-__midl_frag40_t;
-extern const __midl_frag40_t __midl_frag40;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag39_t;
-extern const __midl_frag39_t __midl_frag39;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-    struct _NDR64_PARAM_FORMAT frag5;
-}
-__midl_frag36_t;
-extern const __midl_frag36_t __midl_frag36;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag34_t;
-extern const __midl_frag34_t __midl_frag34;
-
-typedef 
-NDR64_FORMAT_CHAR
-__midl_frag29_t;
-extern const __midl_frag29_t __midl_frag29;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-    struct _NDR64_PARAM_FORMAT frag5;
-    struct _NDR64_PARAM_FORMAT frag6;
-    struct _NDR64_PARAM_FORMAT frag7;
-    struct _NDR64_PARAM_FORMAT frag8;
-}
-__midl_frag26_t;
-extern const __midl_frag26_t __midl_frag26;
-
-typedef 
-struct 
-{
-    struct _NDR64_STRUCTURE_HEADER_FORMAT frag1;
-}
-__midl_frag24_t;
-extern const __midl_frag24_t __midl_frag24;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-    struct _NDR64_PARAM_FORMAT frag5;
-    struct _NDR64_PARAM_FORMAT frag6;
-}
-__midl_frag19_t;
-extern const __midl_frag19_t __midl_frag19;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-}
-__midl_frag17_t;
-extern const __midl_frag17_t __midl_frag17;
-
-typedef 
-struct _NDR64_POINTER_FORMAT
-__midl_frag15_t;
-extern const __midl_frag15_t __midl_frag15;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-    struct _NDR64_PARAM_FORMAT frag5;
-    struct _NDR64_PARAM_FORMAT frag6;
-}
-__midl_frag10_t;
-extern const __midl_frag10_t __midl_frag10;
-
-typedef 
-struct 
-{
-    struct _NDR64_STRUCTURE_HEADER_FORMAT frag1;
-}
-__midl_frag8_t;
-extern const __midl_frag8_t __midl_frag8;
-
-typedef 
-struct 
-{
-    struct _NDR64_PROC_FORMAT frag1;
-    struct _NDR64_BIND_AND_NOTIFY_EXTENSION frag2;
-    struct _NDR64_PARAM_FORMAT frag3;
-    struct _NDR64_PARAM_FORMAT frag4;
-}
-__midl_frag6_t;
-extern const __midl_frag6_t __midl_frag6;
-
-typedef 
-NDR64_FORMAT_UINT32
-__midl_frag1_t;
-extern const __midl_frag1_t __midl_frag1;
-
-static const __midl_frag53_t __midl_frag53 =
-0x5    /* FC64_INT32 */;
-
-static const __midl_frag52_t __midl_frag52 =
-{ 
-/*  */
-    { 
-    /* struct _NDR64_FIX_ARRAY_HEADER_FORMAT */
-        0x40,    /* FC64_FIX_ARRAY */
-        (NDR64_UINT8) 1 /* 0x1 */,
-        { 
-        /* struct _NDR64_FIX_ARRAY_HEADER_FORMAT */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 256 /* 0x100 */
-    }
-};
-
-static const __midl_frag51_t __midl_frag51 =
-{ 
-/*  */
-    { 
-    /* struct _NDR64_FIX_ARRAY_HEADER_FORMAT */
-        0x40,    /* FC64_FIX_ARRAY */
-        (NDR64_UINT8) 1 /* 0x1 */,
-        { 
-        /* struct _NDR64_FIX_ARRAY_HEADER_FORMAT */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 64 /* 0x40 */
-    }
-};
-
-static const __midl_frag50_t __midl_frag50 =
-{ 
-/* TrayRpcAvDatabaseInfo */
-    { 
-    /* TrayRpcAvDatabaseInfo */
-        0x35,    /* FC64_FORCED_BOGUS_STRUCT */
-        (NDR64_UINT8) 7 /* 0x7 */,
-        { 
-        /* TrayRpcAvDatabaseInfo */
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 368 /* 0x170 */,
-        0,
-        0,
-        0,
-    },
-    { 
-    /*  */
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x5,    /* FC64_INT32 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_MEMPAD_FORMAT */
-            0x90,    /* FC64_STRUCTPADN */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 4 /* 0x4 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x7,    /* FC64_INT64 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x5,    /* FC64_INT32 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_MEMPAD_FORMAT */
-            0x90,    /* FC64_STRUCTPADN */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 4 /* 0x4 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x7,    /* FC64_INT64 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x7,    /* FC64_INT64 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x5,    /* FC64_INT32 */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_EMBEDDED_COMPLEX_FORMAT */
-            0x91,    /* FC64_EMBEDDED_COMPLEX */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            &__midl_frag51
-        },
-        { 
-        /* struct _NDR64_EMBEDDED_COMPLEX_FORMAT */
-            0x91,    /* FC64_EMBEDDED_COMPLEX */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            &__midl_frag52
-        },
-        { 
-        /* struct _NDR64_MEMPAD_FORMAT */
-            0x90,    /* FC64_STRUCTPADN */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 4 /* 0x4 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* TrayRpcAvDatabaseInfo */
-            0x92,    /* FC64_BUFFER_ALIGN */
-            (NDR64_UINT8) 7 /* 0x7 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        },
-        { 
-        /* struct _NDR64_SIMPLE_MEMBER_FORMAT */
-            0x93,    /* FC64_END */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            (NDR64_UINT32) 0 /* 0x0 */
-        }
-    }
-};
-
-static const __midl_frag49_t __midl_frag49 =
-{ 
-/* *TrayRpcAvDatabaseInfo */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 0 /* 0x0 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag50
-};
-
-static const __midl_frag48_t __midl_frag48 =
-{ 
-/* GetAvDatabaseInfo */
-    { 
-    /* GetAvDatabaseInfo */      /* procedure GetAvDatabaseInfo */
-        (NDR64_UINT32) 17432640 /* 0x10a0040 */,    /* explicit handle */ /* IsIntrepreted, ServerMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 24 /* 0x18 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 8 /* 0x8 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 2 /* 0x2 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* databaseInfo */      /* parameter databaseInfo */
-        &__midl_frag50,
-        { 
-        /* databaseInfo */
-            1,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [out], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag46_t __midl_frag46 =
-{ 
-/* TrayRpcAvDirectoryScanResult */
-    { 
-    /* TrayRpcAvDirectoryScanResult */
-        0x30,    /* FC64_STRUCT */
-        (NDR64_UINT8) 7 /* 0x7 */,
-        { 
-        /* TrayRpcAvDirectoryScanResult */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 42792 /* 0xa728 */
-    }
-};
-
-static const __midl_frag45_t __midl_frag45 =
-{ 
-/* *TrayRpcAvDirectoryScanResult */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 0 /* 0x0 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag46
-};
-
-static const __midl_frag44_t __midl_frag44 =
-{ 
-/* *wchar_t */
-    { 
-    /* *wchar_t */
-        0x64,    /* FC64_CONF_WCHAR_STRING */
-        { 
-        /* *wchar_t */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT16) 2 /* 0x2 */
-    }
-};
-
-static const __midl_frag43_t __midl_frag43 =
-{ 
-/* *wchar_t */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 0 /* 0x0 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag44
-};
-
-static const __midl_frag42_t __midl_frag42 =
-{ 
-/* ScanDirectory */
-    { 
-    /* ScanDirectory */      /* procedure ScanDirectory */
-        (NDR64_UINT32) 17563712 /* 0x10c0040 */,    /* explicit handle */ /* IsIntrepreted, ClientMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 32 /* 0x20 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 45432 /* 0xb178 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 3 /* 0x3 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* path */      /* parameter path */
-        &__midl_frag44,
-        { 
-        /* path */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* scanResult */      /* parameter scanResult */
-        &__midl_frag46,
-        { 
-        /* scanResult */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustFree, [out], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        24 /* 0x18 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag40_t __midl_frag40 =
-{ 
-/* TrayRpcAvFileScanResult */
-    { 
-    /* TrayRpcAvFileScanResult */
-        0x30,    /* FC64_STRUCT */
-        (NDR64_UINT8) 7 /* 0x7 */,
-        { 
-        /* TrayRpcAvFileScanResult */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 1304 /* 0x518 */
-    }
-};
-
-static const __midl_frag39_t __midl_frag39 =
-{ 
-/* *TrayRpcAvFileScanResult */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 0 /* 0x0 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag40
-};
-
-static const __midl_frag36_t __midl_frag36 =
-{ 
-/* ScanFile */
-    { 
-    /* ScanFile */      /* procedure ScanFile */
-        (NDR64_UINT32) 17563712 /* 0x10c0040 */,    /* explicit handle */ /* IsIntrepreted, ClientMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 32 /* 0x20 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 1416 /* 0x588 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 3 /* 0x3 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* path */      /* parameter path */
-        &__midl_frag44,
-        { 
-        /* path */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* scanResult */      /* parameter scanResult */
-        &__midl_frag40,
-        { 
-        /* scanResult */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustFree, [out], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        24 /* 0x18 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag34_t __midl_frag34 =
-{ 
-/* *TrayRpcLicenseInfo */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 4 /* 0x4 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag24
-};
-
-static const __midl_frag29_t __midl_frag29 =
-0x7    /* FC64_INT64 */;
-
-static const __midl_frag26_t __midl_frag26 =
-{ 
-/* ActivateProduct */
-    { 
-    /* ActivateProduct */      /* procedure ActivateProduct */
-        (NDR64_UINT32) 17563712 /* 0x10c0040 */,    /* explicit handle */ /* IsIntrepreted, ClientMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 56 /* 0x38 */ ,  /* Stack size */
-        (NDR64_UINT32) 16 /* 0x10 */,
-        (NDR64_UINT32) 80 /* 0x50 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 6 /* 0x6 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* activationKey */      /* parameter activationKey */
-        &__midl_frag44,
-        { 
-        /* activationKey */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* productId */      /* parameter productId */
-        &__midl_frag29,
-        { 
-        /* productId */
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [in], Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    },
-    { 
-    /* deviceName */      /* parameter deviceName */
-        &__midl_frag44,
-        { 
-        /* deviceName */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        24 /* 0x18 */,   /* Stack offset */
-    },
-    { 
-    /* deviceMac */      /* parameter deviceMac */
-        &__midl_frag44,
-        { 
-        /* deviceMac */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        32 /* 0x20 */,   /* Stack offset */
-    },
-    { 
-    /* licenseInfo */      /* parameter licenseInfo */
-        &__midl_frag24,
-        { 
-        /* licenseInfo */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            1
-        },    /* MustFree, [out], SimpleRef, UseCache */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        40 /* 0x28 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        48 /* 0x30 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag24_t __midl_frag24 =
-{ 
-/* TrayRpcLicenseInfo */
-    { 
-    /* TrayRpcLicenseInfo */
-        0x30,    /* FC64_STRUCT */
-        (NDR64_UINT8) 7 /* 0x7 */,
-        { 
-        /* TrayRpcLicenseInfo */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 32 /* 0x20 */
-    }
-};
-
-static const __midl_frag19_t __midl_frag19 =
-{ 
-/* GetLicenseState */
-    { 
-    /* GetLicenseState */      /* procedure GetLicenseState */
-        (NDR64_UINT32) 17563712 /* 0x10c0040 */,    /* explicit handle */ /* IsIntrepreted, ClientMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 40 /* 0x28 */ ,  /* Stack size */
-        (NDR64_UINT32) 16 /* 0x10 */,
-        (NDR64_UINT32) 80 /* 0x50 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 4 /* 0x4 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* productId */      /* parameter productId */
-        &__midl_frag29,
-        { 
-        /* productId */
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [in], Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* deviceMac */      /* parameter deviceMac */
-        &__midl_frag44,
-        { 
-        /* deviceMac */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    },
-    { 
-    /* licenseInfo */      /* parameter licenseInfo */
-        &__midl_frag24,
-        { 
-        /* licenseInfo */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            1
-        },    /* MustFree, [out], SimpleRef, UseCache */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        24 /* 0x18 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        32 /* 0x20 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag17_t __midl_frag17 =
-{ 
-/* Logout */
-    { 
-    /* Logout */      /* procedure Logout */
-        (NDR64_UINT32) 17301568 /* 0x1080040 */,    /* explicit handle */ /* IsIntrepreted, HasReturn, HasExtensions */
-        (NDR64_UINT32) 16 /* 0x10 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 8 /* 0x8 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 1 /* 0x1 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag15_t __midl_frag15 =
-{ 
-/* *TrayRpcAuthInfo */
-    0x20,    /* FC64_RP */
-    (NDR64_UINT8) 0 /* 0x0 */,
-    (NDR64_UINT16) 0 /* 0x0 */,
-    &__midl_frag8
-};
-
-static const __midl_frag10_t __midl_frag10 =
-{ 
-/* Login */
-    { 
-    /* Login */      /* procedure Login */
-        (NDR64_UINT32) 17563712 /* 0x10c0040 */,    /* explicit handle */ /* IsIntrepreted, ClientMustSize, HasReturn, HasExtensions */
-        (NDR64_UINT32) 40 /* 0x28 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 336 /* 0x150 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 4 /* 0x4 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* username */      /* parameter username */
-        &__midl_frag44,
-        { 
-        /* username */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* password */      /* parameter password */
-        &__midl_frag44,
-        { 
-        /* password */
-            1,
-            1,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustSize, MustFree, [in], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    },
-    { 
-    /* authInfo */      /* parameter authInfo */
-        &__midl_frag8,
-        { 
-        /* authInfo */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustFree, [out], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        24 /* 0x18 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        32 /* 0x20 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag8_t __midl_frag8 =
-{ 
-/* TrayRpcAuthInfo */
-    { 
-    /* TrayRpcAuthInfo */
-        0x30,    /* FC64_STRUCT */
-        (NDR64_UINT8) 7 /* 0x7 */,
-        { 
-        /* TrayRpcAuthInfo */
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        },
-        (NDR64_UINT8) 0 /* 0x0 */,
-        (NDR64_UINT32) 272 /* 0x110 */
-    }
-};
-
-static const __midl_frag6_t __midl_frag6 =
-{ 
-/* GetAuthInfo */
-    { 
-    /* GetAuthInfo */      /* procedure GetAuthInfo */
-        (NDR64_UINT32) 17301568 /* 0x1080040 */,    /* explicit handle */ /* IsIntrepreted, HasReturn, HasExtensions */
-        (NDR64_UINT32) 24 /* 0x18 */ ,  /* Stack size */
-        (NDR64_UINT32) 0 /* 0x0 */,
-        (NDR64_UINT32) 336 /* 0x150 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 0 /* 0x0 */,
-        (NDR64_UINT16) 2 /* 0x2 */,
-        (NDR64_UINT16) 8 /* 0x8 */
-    },
-    { 
-    /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-        { 
-        /* struct _NDR64_BIND_AND_NOTIFY_EXTENSION */
-            0x72,    /* FC64_BIND_PRIMITIVE */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            0 /* 0x0 */,   /* Stack offset */
-            (NDR64_UINT8) 0 /* 0x0 */,
-            (NDR64_UINT8) 0 /* 0x0 */
-        },
-        (NDR64_UINT16) 0 /* 0x0 */      /* Notify index */
-    },
-    { 
-    /* authInfo */      /* parameter authInfo */
-        &__midl_frag8,
-        { 
-        /* authInfo */
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* MustFree, [out], SimpleRef */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        8 /* 0x8 */,   /* Stack offset */
-    },
-    { 
-    /* TrayRpcStatusCode */      /* parameter TrayRpcStatusCode */
-        &__midl_frag53,
-        { 
-        /* TrayRpcStatusCode */
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            (NDR64_UINT16) 0 /* 0x0 */,
-            0
-        },    /* [out], IsReturn, Basetype, ByValue */
-        (NDR64_UINT16) 0 /* 0x0 */,
-        16 /* 0x10 */,   /* Stack offset */
-    }
-};
-
-static const __midl_frag1_t __midl_frag1 =
-(NDR64_UINT32) 0 /* 0x0 */;
-#ifdef __cplusplus
-}
-#endif
-
-
-#include "poppack.h"
-
-
-static const FormatInfoRef TrayRpcControl_Ndr64ProcTable[] =
-    {
-    &__midl_frag17,
-    &__midl_frag17,
-    &__midl_frag6,
-    &__midl_frag10,
-    &__midl_frag17,
-    &__midl_frag19,
-    &__midl_frag26,
-    &__midl_frag36,
-    &__midl_frag42,
-    &__midl_frag48
-    };
-
-
-#ifdef __cplusplus
-namespace {
-#endif
-static const MIDL_STUB_DESC TrayRpcControl_StubDesc = 
-    {
-    (void *)& TrayRpcControl___RpcServerInterface,
-    MIDL_user_allocate,
-    MIDL_user_free,
-    0,
-    0,
-    0,
-    0,
-    0,
-    RpcContract__MIDL_TypeFormatString.Format,
-    1, /* -error bounds_check flag */
-    0x60001, /* Ndr library version */
-    0,
-    0x8010274, /* MIDL Version 8.1.628 */
-    0,
-    0,
-    0,  /* notify & notify_flag routine table */
-    0x2000001, /* MIDL flag */
-    0, /* cs routines */
-    (void *)& TrayRpcControl_ServerInfo,   /* proxy/server info */
-    0
-    };
-#ifdef __cplusplus
-}
-#endif
-
-static const RPC_DISPATCH_FUNCTION TrayRpcControl_NDR64__table[] =
-    {
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    NdrServerCallAll,
-    0
-    };
-static const RPC_DISPATCH_TABLE TrayRpcControl_NDR64__v1_0_DispatchTable = 
-    {
-    10,
-    (RPC_DISPATCH_FUNCTION*)TrayRpcControl_NDR64__table
-    };
-
-static const MIDL_SYNTAX_INFO TrayRpcControl_SyntaxInfo [  2 ] = 
-    {
-    {
-    {{0x8A885D04,0x1CEB,0x11C9,{0x9F,0xE8,0x08,0x00,0x2B,0x10,0x48,0x60}},{2,0}},
-    (RPC_DISPATCH_TABLE*)&TrayRpcControl_v1_0_DispatchTable,
-    RpcContract__MIDL_ProcFormatString.Format,
-    TrayRpcControl_FormatStringOffsetTable,
-    RpcContract__MIDL_TypeFormatString.Format,
-    0,
-    0,
-    0
-    }
-    ,{
-    {{0x71710533,0xbeba,0x4937,{0x83,0x19,0xb5,0xdb,0xef,0x9c,0xcc,0x36}},{1,0}},
-    (RPC_DISPATCH_TABLE*)&TrayRpcControl_NDR64__v1_0_DispatchTable,
-    0 ,
-    (unsigned short *) TrayRpcControl_Ndr64ProcTable,
-    0,
-    0,
-    0,
-    0
-    }
-    };
-
-
-static const SERVER_ROUTINE TrayRpcControl_ServerRoutineTable[] = 
+static const SERVER_ROUTINE TrayRpcControl_ServerRoutineTable[] =
     {
     (SERVER_ROUTINE)StopService,
     (SERVER_ROUTINE)ConfirmStopService,
@@ -2282,20 +834,20 @@ static const SERVER_ROUTINE TrayRpcControl_ServerRoutineTable[] =
     (SERVER_ROUTINE)ActivateProduct,
     (SERVER_ROUTINE)ScanFile,
     (SERVER_ROUTINE)ScanDirectory,
+    (SERVER_ROUTINE)ScanFixedDrives,
     (SERVER_ROUTINE)GetAvDatabaseInfo
     };
 
-static const MIDL_SERVER_INFO TrayRpcControl_ServerInfo = 
+static const MIDL_SERVER_INFO TrayRpcControl_ServerInfo =
     {
     &TrayRpcControl_StubDesc,
     TrayRpcControl_ServerRoutineTable,
     RpcContract__MIDL_ProcFormatString.Format,
-    (unsigned short *) TrayRpcControl_FormatStringOffsetTable,
+    TrayRpcControl_FormatStringOffsetTable,
     0,
-    (RPC_SYNTAX_IDENTIFIER*)&_NDR64_RpcTransferSyntax_1_0,
-    2,
-    (MIDL_SYNTAX_INFO*)TrayRpcControl_SyntaxInfo
-    };
+    0,
+    0,
+    0};
 #if _MSC_VER >= 1200
 #pragma warning(pop)
 #endif

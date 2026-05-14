@@ -506,7 +506,13 @@ namespace Antivirus
         }
 
         loadedDatabase.SetLoadedReleaseDate(EpochMillisToTimePoint(releaseEpochMillis));
-        loadedDatabase.SetLoadMetadata(source, std::chrono::system_clock::now(), L"Database loaded.");
+        loadedDatabase.SetLoadMetadata(
+            source,
+            std::chrono::system_clock::now(),
+            L"Database loaded.",
+            verifier.AlgorithmName(),
+            result.SkippedRecordCount,
+            std::chrono::system_clock::now());
         database = loadedDatabase;
         result.Loaded = result.LoadedRecordCount > 0;
         result.Message = result.Loaded ? L"Database loaded." : L"Database has no valid records.";

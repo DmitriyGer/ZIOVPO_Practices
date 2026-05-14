@@ -373,6 +373,21 @@ extern "C" TrayRpcStatusCode ScanDirectory(
     }
 }
 
+extern "C" TrayRpcStatusCode ScanFixedDrives(
+    handle_t /*hBinding*/,
+    TrayRpcAvDirectoryScanResult* scanResult)
+{
+    // Scans all fixed local drives through the service antivirus engine.
+    try
+    {
+        return ServiceApiState::Instance().ScanFixedDrives(scanResult);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
 extern "C" TrayRpcStatusCode GetAvDatabaseInfo(
     handle_t /*hBinding*/,
     TrayRpcAvDatabaseInfo* databaseInfo)

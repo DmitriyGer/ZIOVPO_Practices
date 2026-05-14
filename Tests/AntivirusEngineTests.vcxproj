@@ -108,7 +108,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Winhttp.lib;Bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Winhttp.lib;Bcrypt.lib;Crypt32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
@@ -130,6 +130,7 @@
     <ClInclude Include="..\Shared\AntivirusScanner.h" />
     <ClInclude Include="..\Shared\AntivirusSignatureVerifier.h" />
     <ClInclude Include="..\Shared\AntivirusTypes.h" />
+    <ClInclude Include="..\Shared\AntivirusUpdateClient.h" />
     <ClInclude Include="..\Shared\ApiClient.h" />
     <ClInclude Include="..\Shared\ApiModels.h" />
     <ClInclude Include="..\Shared\ByteStream.h" />
@@ -143,6 +144,7 @@
     <ClCompile Include="..\Shared\AntivirusScanner.cpp" />
     <ClCompile Include="..\Shared\AntivirusSignatureVerifier.cpp" />
     <ClCompile Include="..\Shared\AntivirusTypes.cpp" />
+    <ClCompile Include="..\Shared\AntivirusUpdateClient.cpp" />
     <ClCompile Include="..\Shared\ApiClient.cpp" />
     <ClCompile Include="..\Shared\ByteStream.cpp" />
     <ClCompile Include="..\Shared\InMemorySession.cpp" />

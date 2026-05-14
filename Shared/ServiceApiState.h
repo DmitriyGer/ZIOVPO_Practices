@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AntivirusDatabase.h"
+#include "AntivirusScanner.h"
 #include "ApiClient.h"
 #include "InMemorySession.h"
 #include "RpcContract.h"
@@ -55,6 +56,9 @@ public:
 
     // Recursively scans one selected directory through the antivirus engine.
     TrayRpcStatusCode ScanDirectory(const std::wstring& path, TrayRpcAvDirectoryScanResult* scanResult);
+
+    // Scans all local fixed drives through the antivirus engine.
+    TrayRpcStatusCode ScanFixedDrives(TrayRpcAvDirectoryScanResult* scanResult);
 
     // Returns antivirus database metadata for RPC callers.
     TrayRpcStatusCode GetAvDatabaseInfo(TrayRpcAvDatabaseInfo* databaseInfo);
@@ -132,4 +136,5 @@ private:
     std::chrono::system_clock::time_point m_nextFixedDriveScanUtc = {};
     bool m_databaseUpdateRunning = false;
     bool m_fixedDriveScanRunning = false;
+    Antivirus::AvDirectoryScanResult m_lastScheduledScanResult;
 };

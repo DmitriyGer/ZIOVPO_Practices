@@ -75,6 +75,12 @@ interface TrayRpcControl
         TrayRpcAvDatabaseLoadStatus loadStatus;
         wchar_t source[32];
         wchar_t lastUpdateStatus[128];
+        wchar_t verifierName[64];
+        hyper skippedRecordCount;
+        int hasLastManifestVerified;
+        hyper lastManifestVerifiedEpochSeconds;
+        int schedulerEnabled;
+        int monitoringEnabled;
     } TrayRpcAvDatabaseInfo;
 
     typedef struct TrayRpcAvFileScanResult
@@ -139,6 +145,10 @@ interface TrayRpcControl
     TrayRpcStatusCode ScanDirectory(
         [in] handle_t hBinding,
         [in, string] wchar_t* path,
+        [out] TrayRpcAvDirectoryScanResult* scanResult);
+
+    TrayRpcStatusCode ScanFixedDrives(
+        [in] handle_t hBinding,
         [out] TrayRpcAvDirectoryScanResult* scanResult);
 
     TrayRpcStatusCode GetAvDatabaseInfo(

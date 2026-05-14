@@ -767,7 +767,48 @@ namespace ApiIntegration
     }
 
     // Выполняет один HTTP-запрос и возвращает статус и тело ответа.
+    bool ApiClient::DownloadBinary(
+        const std::wstring& method,
+        const std::wstring& endpointPath,
+        const std::string& requestBodyUtf8,
+        const std::wstring& acceptHeader,
+        const std::wstring* bearerToken,
+        BinaryResponse& response) const
+    {
+        HttpResponse httpResponse = {};
+        if (!SendHttpRequest(method, endpointPath, requestBodyUtf8, acceptHeader, bearerToken, httpResponse))
+        {
+            response = {};
+            response.transportError = httpResponse.transportError;
+            return false;
+        }
+
+        response.statusCode = httpResponse.statusCode;
+        response.transportError = httpResponse.transportError;
+        response.contentType = httpResponse.contentType;
+        response.body.assign(httpResponse.body.begin(), httpResponse.body.end());
+        return true;
+    }
+
+    bool ApiClient::IsServiceReachable(const std::wstring* bearerToken) const
+    {
+        HttpResponse response = {};
+        return SendHttpRequest(L"GET", L"/api/system/ping", {}, L"application/json", bearerToken, response)
+            && response.statusCode < 500;
+    }
+
     bool ApiClient::SendJsonRequest(const std::wstring& method, const std::wstring& endpointPath, const std::string& requestBodyUtf8, const std::wstring* bearerToken, HttpResponse& response) const
+    {
+        return SendHttpRequest(method, endpointPath, requestBodyUtf8, L"application/json", bearerToken, response);
+    }
+
+    bool ApiClient::SendHttpRequest(
+        const std::wstring& method,
+        const std::wstring& endpointPath,
+        const std::string& requestBodyUtf8,
+        const std::wstring& acceptHeader,
+        const std::wstring* bearerToken,
+        HttpResponse& response) const
     {
         response = {};
         if (!m_isConfigured)
@@ -812,7 +853,9 @@ namespace ApiIntegration
             WinHttpSetOption(request.handle, WINHTTP_OPTION_SECURITY_FLAGS, &securityFlags, sizeof(securityFlags));
         }
 
-        std::wstring headers = L"Accept: application/json\r\n";
+        std::wstring headers = L"Accept: ";
+        headers += acceptHeader.empty() ? L"*/*" : acceptHeader;
+        headers += L"\r\n";
         if (!requestBodyUtf8.empty())
         {
             headers += L"Content-Type: application/json\r\n";
@@ -859,6 +902,30 @@ namespace ApiIntegration
             return false;
         }
         response.statusCode = statusCode;
+
+        wchar_t contentTypeBuffer[256] = {};
+        DWORD contentTypeSize = sizeof(contentTypeBuffer);
+        if (WinHttpQueryHeaders(
+                request.handle,
+                WINHTTP_QUERY_CONTENT_TYPE,
+                WINHTTP_HEADER_NAME_BY_INDEX,
+                contentTypeBuffer,
+                &contentTypeSize,
+                WINHTTP_NO_HEADER_INDEX))
+        {
+            const size_t charCount = contentTypeSize / sizeof(wchar_t);
+            const std::wstring contentTypeWide(contentTypeBuffer, contentTypeBuffer + charCount);
+            response.contentType.clear();
+            response.contentType.reserve(contentTypeWide.size());
+            for (const wchar_t ch : contentTypeWide)
+            {
+                if (ch == L'\0')
+                {
+                    break;
+                }
+                response.contentType.push_back(static_cast<char>(ch <= 0x7F ? ch : L'?'));
+            }
+        }
 
         for (;;)
         {
