@@ -29,8 +29,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{60bdbf86-f929-4a49-b25d-e5cf8acf7b4b}</ProjectGuid>
-    <RootNamespace>TrayService</RootNamespace>
+    <ProjectGuid>{A4A03784-3C2D-4B7D-9E35-35F142840A6E}</ProjectGuid>
+    <RootNamespace>AntivirusEngineTests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -99,104 +99,29 @@
   <PropertyGroup Label="UserMacros" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)Generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>Rpcrt4.lib;Userenv.lib;Wtsapi32.lib;Bcrypt.lib;Crypt32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <Midl>
-      <OutputDirectory>$(ProjectDir)Generated\</OutputDirectory>
-      <HeaderFileName>RpcContract.h</HeaderFileName>
-      <InterfaceIdentifierFileName>RpcContract_i.c</InterfaceIdentifierFileName>
-      <ClientStubFileName>RpcContract_c.c</ClientStubFileName>
-      <ServerStubFileName>RpcContract_s.c</ServerStubFileName>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\Shared;$(WindowsSdkDir)Include\$(WindowsTargetPlatformVersion)\shared;$(WindowsSdkDir)Include\$(WindowsTargetPlatformVersion)\um;$(WindowsSDK_IncludePath);$(VC_IncludePath);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/app_config %(AdditionalOptions)</AdditionalOptions>
-    </Midl>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\TrayService\Generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>Winhttp.lib;Bcrypt.lib;Crypt32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Shared\AntivirusDatabase.h" />
@@ -206,10 +131,11 @@
     <ClInclude Include="..\Shared\AntivirusSignatureVerifier.h" />
     <ClInclude Include="..\Shared\AntivirusTypes.h" />
     <ClInclude Include="..\Shared\AntivirusUpdateClient.h" />
+    <ClInclude Include="..\Shared\ApiClient.h" />
+    <ClInclude Include="..\Shared\ApiModels.h" />
     <ClInclude Include="..\Shared\ByteStream.h" />
-    <ClInclude Include="DesktopSession.h" />
-    <ClInclude Include="IsolatedStopConfirmation.h" />
-    <ClInclude Include="WinApiLog.h" />
+    <ClInclude Include="..\Shared\InMemorySession.h" />
+    <ClInclude Include="..\Shared\ServiceApiState.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Shared\AntivirusDatabase.cpp" />
@@ -222,19 +148,8 @@
     <ClCompile Include="..\Shared\ApiClient.cpp" />
     <ClCompile Include="..\Shared\ByteStream.cpp" />
     <ClCompile Include="..\Shared\InMemorySession.cpp" />
-    <ClCompile Include="..\Shared\ProcessProtection.cpp" />
-    <ClCompile Include="..\Shared\RpcServer.cpp" />
     <ClCompile Include="..\Shared\ServiceApiState.cpp" />
-    <ClCompile Include="..\Shared\ServiceUtils.cpp" />
-    <ClCompile Include="..\Shared\SessionLaunch.cpp" />
-    <ClCompile Include="DesktopSession.cpp" />
-    <ClCompile Include="Generated\RpcContract_s.c" />
-    <ClCompile Include="IsolatedStopConfirmation.cpp" />
-    <ClCompile Include="service.cpp" />
-    <ClCompile Include="WinApiLog.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Midl Include="..\Shared\RpcContract.idl" />
+    <ClCompile Include="AntivirusEngineTests.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

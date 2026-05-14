@@ -3,6 +3,7 @@
 #include "ApiModels.h"
 
 #include <string>
+#include <vector>
 
 namespace ApiIntegration
 {
@@ -62,11 +63,32 @@ namespace ApiIntegration
             std::wstring& signature,
             LicenseError& error) const;
 
+        struct BinaryResponse
+        {
+            unsigned long statusCode = 0;
+            unsigned long transportError = 0;
+            std::string contentType;
+            std::vector<uint8_t> body;
+        };
+
+        // Downloads one binary endpoint using the supplied bearer token.
+        bool DownloadBinary(
+            const std::wstring& method,
+            const std::wstring& endpointPath,
+            const std::string& requestBodyUtf8,
+            const std::wstring& acceptHeader,
+            const std::wstring* bearerToken,
+            BinaryResponse& response) const;
+
+        // Performs a lightweight authenticated reachability check against the service.
+        bool IsServiceReachable(const std::wstring* bearerToken) const;
+
     private:
         struct HttpResponse
         {
             unsigned long statusCode = 0;
             unsigned long transportError = 0;
+            std::string contentType;
             std::string body;
         };
 
@@ -75,6 +97,15 @@ namespace ApiIntegration
             const std::wstring& method,
             const std::wstring& endpointPath,
             const std::string& requestBodyUtf8,
+            const std::wstring* bearerToken,
+            HttpResponse& response) const;
+
+        // Performs one HTTP request with a caller-selected Accept header.
+        bool SendHttpRequest(
+            const std::wstring& method,
+            const std::wstring& endpointPath,
+            const std::string& requestBodyUtf8,
+            const std::wstring& acceptHeader,
             const std::wstring* bearerToken,
             HttpResponse& response) const;
 
