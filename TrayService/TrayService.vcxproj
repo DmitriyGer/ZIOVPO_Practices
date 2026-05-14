@@ -102,7 +102,7 @@
       <AdditionalIncludeDirectories>$(ProjectDir)Generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Rpcrt4.lib;Userenv.lib;Wtsapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Rpcrt4.lib;Userenv.lib;Wtsapi32.lib;Bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <OutputDirectory>$(ProjectDir)Generated\</OutputDirectory>
@@ -200,8 +200,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Shared\AntivirusDatabase.h" />
+    <ClInclude Include="..\Shared\AntivirusDatabaseStore.h" />
     <ClInclude Include="..\Shared\AntivirusEngine.h" />
     <ClInclude Include="..\Shared\AntivirusScanner.h" />
+    <ClInclude Include="..\Shared\AntivirusSignatureVerifier.h" />
     <ClInclude Include="..\Shared\AntivirusTypes.h" />
     <ClInclude Include="..\Shared\ByteStream.h" />
     <ClInclude Include="DesktopSession.h" />
@@ -210,8 +212,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Shared\AntivirusDatabase.cpp" />
+    <ClCompile Include="..\Shared\AntivirusDatabaseStore.cpp" />
     <ClCompile Include="..\Shared\AntivirusEngine.cpp" />
     <ClCompile Include="..\Shared\AntivirusScanner.cpp" />
+    <ClCompile Include="..\Shared\AntivirusSignatureVerifier.cpp" />
     <ClCompile Include="..\Shared\AntivirusTypes.cpp" />
     <ClCompile Include="..\Shared\ApiClient.cpp" />
     <ClCompile Include="..\Shared\ByteStream.cpp" />

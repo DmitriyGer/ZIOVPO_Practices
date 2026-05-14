@@ -28,6 +28,15 @@ namespace Antivirus
         Loaded = 1
     };
 
+    enum class AvDatabaseFileSource
+    {
+        None = 0,
+        Main = 1,
+        Backup = 2,
+        Default = 3,
+        Updated = 4
+    };
+
     struct AvSignatureRecord
     {
         std::wstring RecordId;
@@ -43,8 +52,11 @@ namespace Antivirus
     struct AvDatabaseInfo
     {
         std::chrono::system_clock::time_point ReleaseDateUtc = {};
+        std::chrono::system_clock::time_point LastSuccessfulLoadUtc = {};
         size_t RecordCount = 0;
         AvDatabaseLoadStatus LoadStatus = AvDatabaseLoadStatus::NotLoaded;
+        AvDatabaseFileSource Source = AvDatabaseFileSource::None;
+        std::wstring LastUpdateStatus;
     };
 
     struct AvScanResult

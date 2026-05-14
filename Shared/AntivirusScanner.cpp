@@ -3,6 +3,8 @@
 #include "AntivirusEngine.h"
 #include "ByteStream.h"
 
+#include <windows.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -191,9 +193,56 @@ namespace Antivirus
         return result;
     }
 
+    AvDirectoryScanResult AntivirusScanner::ScanFixedDrives() const
+    {
+        AvDirectoryScanResult result = {};
+        result.Path = L"<fixed-drives>";
+
+        const std::vector<std::filesystem::path> driveRoots = ListFixedDriveRoots();
+        for (const std::filesystem::path& driveRoot : driveRoots)
+        {
+            AvDirectoryScanResult driveResult = ScanDirectory(driveRoot);
+            result.TotalScanned += driveResult.TotalScanned;
+            result.InfectedCount += driveResult.InfectedCount;
+            result.ErrorCount += driveResult.ErrorCount;
+
+            const size_t remainingCapacity = result.Results.size() < 32 ? 32 - result.Results.size() : 0;
+            const size_t copyCount = (std::min)(remainingCapacity, driveResult.Results.size());
+            result.Results.insert(
+                result.Results.end(),
+                driveResult.Results.begin(),
+                driveResult.Results.begin() + static_cast<std::ptrdiff_t>(copyCount));
+        }
+
+        result.Message = L"Fixed drives scan completed.";
+        return result;
+    }
+
     AvDatabaseInfo AntivirusScanner::GetDatabaseInfo() const
     {
         return m_database.GetInfo();
+    }
+
+    std::vector<std::filesystem::path> AntivirusScanner::ListFixedDriveRoots()
+    {
+        std::vector<std::filesystem::path> roots;
+        const DWORD driveMask = GetLogicalDrives();
+        for (wchar_t letter = L'A'; letter <= L'Z'; ++letter)
+        {
+            const DWORD bit = 1u << (letter - L'A');
+            if ((driveMask & bit) == 0)
+            {
+                continue;
+            }
+
+            wchar_t rootPath[] = { letter, L':', L'\\', L'\0' };
+            if (GetDriveTypeW(rootPath) == DRIVE_FIXED)
+            {
+                roots.emplace_back(rootPath);
+            }
+        }
+
+        return roots;
     }
 
     AvObjectType AntivirusScanner::DetectObjectType(const std::filesystem::path& filePath, std::wstring& errorMessage)

@@ -69,8 +69,11 @@ namespace RpcClient
     struct AvDatabaseInfo
     {
         std::optional<std::chrono::system_clock::time_point> releaseDateUtc;
+        std::optional<std::chrono::system_clock::time_point> lastSuccessfulLoadUtc;
         unsigned long long recordCount = 0;
         AvDatabaseLoadStatus loadStatus = AvDatabaseLoadStatus::NotLoaded;
+        std::wstring source;
+        std::wstring lastUpdateStatus;
     };
 
     struct AvFileScanResult

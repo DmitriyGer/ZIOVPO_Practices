@@ -7,8 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(ANTIVIRUS_SHARED_SOURCES
     Shared/AntivirusDatabase.cpp
+    Shared/AntivirusDatabaseStore.cpp
     Shared/AntivirusEngine.cpp
     Shared/AntivirusScanner.cpp
+    Shared/AntivirusSignatureVerifier.cpp
     Shared/AntivirusTypes.cpp
     Shared/ByteStream.cpp
 )
@@ -51,7 +53,7 @@ target_include_directories(AntivirusEngineTests PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(AntivirusEngineTests PRIVATE Winhttp)
+    target_link_libraries(AntivirusEngineTests PRIVATE Winhttp Bcrypt)
 endif()
 
 enable_testing()

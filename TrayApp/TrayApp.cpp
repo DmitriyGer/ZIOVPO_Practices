@@ -924,6 +924,15 @@ void ApplyUiState(HWND hWnd)
     databaseLine += std::to_wstring(g_appState.avDatabaseInfo.recordCount);
     databaseLine += L", released: ";
     databaseLine += FormatExpirationDateUtc(g_appState.avDatabaseInfo.releaseDateUtc);
+    databaseLine += L", source: ";
+    databaseLine += g_appState.avDatabaseInfo.source.empty() ? L"unknown" : g_appState.avDatabaseInfo.source;
+    databaseLine += L", loaded: ";
+    databaseLine += FormatExpirationDateUtc(g_appState.avDatabaseInfo.lastSuccessfulLoadUtc);
+    if (!g_appState.avDatabaseInfo.lastUpdateStatus.empty())
+    {
+        databaseLine += L", update: ";
+        databaseLine += g_appState.avDatabaseInfo.lastUpdateStatus;
+    }
     SetWindowTextW(g_controls.avDatabaseStatusLabel, databaseLine.c_str());
 
     SetWindowTextW(g_controls.scanResultsEdit, g_appState.scanResultText.c_str());

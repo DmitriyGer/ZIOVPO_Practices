@@ -127,8 +127,12 @@ typedef struct TrayRpcAvDatabaseInfo
     {
     int hasReleaseDate;
     hyper releaseEpochSeconds;
+    int hasLastSuccessfulLoad;
+    hyper lastSuccessfulLoadEpochSeconds;
     hyper recordCount;
     TrayRpcAvDatabaseLoadStatus loadStatus;
+    wchar_t source[ 32 ];
+    wchar_t lastUpdateStatus[ 128 ];
     } 	TrayRpcAvDatabaseInfo;
 
 typedef struct TrayRpcAvFileScanResult

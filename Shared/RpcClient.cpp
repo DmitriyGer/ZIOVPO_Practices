@@ -481,10 +481,18 @@ namespace
         databaseInfo = {};
         databaseInfo.recordCount = static_cast<unsigned long long>(rpcInfo.recordCount);
         databaseInfo.loadStatus = FromRpcAvDatabaseLoadStatus(rpcInfo.loadStatus);
+        databaseInfo.source = rpcInfo.source;
+        databaseInfo.lastUpdateStatus = rpcInfo.lastUpdateStatus;
         if (rpcInfo.hasReleaseDate != 0)
         {
             databaseInfo.releaseDateUtc =
                 std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcInfo.releaseEpochSeconds));
+        }
+
+        if (rpcInfo.hasLastSuccessfulLoad != 0)
+        {
+            databaseInfo.lastSuccessfulLoadUtc =
+                std::chrono::system_clock::from_time_t(static_cast<time_t>(rpcInfo.lastSuccessfulLoadEpochSeconds));
         }
     }
 }

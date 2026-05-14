@@ -42,8 +42,14 @@ namespace Antivirus
         // Recursively scans files under one selected directory.
         AvDirectoryScanResult ScanDirectory(const std::filesystem::path& directoryPath) const;
 
+        // Scans all fixed local drives through the existing directory scanner.
+        AvDirectoryScanResult ScanFixedDrives() const;
+
         // Returns current database metadata used by this scanner.
         AvDatabaseInfo GetDatabaseInfo() const;
+
+        // Returns local fixed drive roots and skips removable/network drives.
+        static std::vector<std::filesystem::path> ListFixedDriveRoots();
 
         // Determines a minimal object type used by the AV engine.
         static AvObjectType DetectObjectType(const std::filesystem::path& filePath, std::wstring& errorMessage);

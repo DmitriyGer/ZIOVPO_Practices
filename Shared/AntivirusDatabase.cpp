@@ -29,8 +29,11 @@ namespace Antivirus
     {
         m_records.clear();
         m_releaseDateUtc = {};
+        m_lastSuccessfulLoadUtc = {};
         m_recordCount = 0;
         m_loadStatus = AvDatabaseLoadStatus::NotLoaded;
+        m_source = AvDatabaseFileSource::None;
+        m_lastUpdateStatus.clear();
     }
 
     bool InMemoryAvDatabase::AddSignature(
@@ -75,6 +78,10 @@ namespace Antivirus
         if (m_releaseDateUtc == std::chrono::system_clock::time_point{})
         {
             m_releaseDateUtc = std::chrono::system_clock::now();
+        }
+        if (m_lastSuccessfulLoadUtc == std::chrono::system_clock::time_point{})
+        {
+            m_lastSuccessfulLoadUtc = std::chrono::system_clock::now();
         }
         m_loadStatus = AvDatabaseLoadStatus::Loaded;
 
@@ -121,12 +128,38 @@ namespace Antivirus
             L"DEMO-EICAR-TEST-FILE");
     }
 
+    void InMemoryAvDatabase::SetLoadedReleaseDate(std::chrono::system_clock::time_point releaseDateUtc)
+    {
+        m_releaseDateUtc = releaseDateUtc;
+        if (m_recordCount > 0)
+        {
+            m_loadStatus = AvDatabaseLoadStatus::Loaded;
+        }
+    }
+
+    void InMemoryAvDatabase::SetLoadMetadata(
+        AvDatabaseFileSource source,
+        std::chrono::system_clock::time_point lastSuccessfulLoadUtc,
+        const std::wstring& lastUpdateStatus)
+    {
+        m_source = source;
+        m_lastSuccessfulLoadUtc = lastSuccessfulLoadUtc;
+        m_lastUpdateStatus = lastUpdateStatus;
+        if (m_recordCount > 0)
+        {
+            m_loadStatus = AvDatabaseLoadStatus::Loaded;
+        }
+    }
+
     AvDatabaseInfo InMemoryAvDatabase::GetInfo() const
     {
         AvDatabaseInfo info = {};
         info.ReleaseDateUtc = m_releaseDateUtc;
+        info.LastSuccessfulLoadUtc = m_lastSuccessfulLoadUtc;
         info.RecordCount = m_recordCount;
         info.LoadStatus = m_loadStatus;
+        info.Source = m_source;
+        info.LastUpdateStatus = m_lastUpdateStatus;
         return info;
     }
 
