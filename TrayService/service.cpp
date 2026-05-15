@@ -21,7 +21,7 @@ namespace
     constexpr DWORD kGuiTerminationTimeoutMs = 5000;
     constexpr DWORD kLaunchRetryIntervalMs = 5000;
     constexpr bool kAllowAdministratorsToTerminateProcesses = false;
-    constexpr bool kDenyServiceStopForAdministrators = true;
+    constexpr bool kDenyServiceStopForAdministrators = false;
     constexpr bool kRestrictServiceSecurityWritesForAdministrators = false;
 
     void LogHardeningContinueWarning(const wchar_t* stepName)
@@ -79,9 +79,12 @@ namespace
         g_serviceStatus.dwWin32ExitCode = win32ExitCode;
         g_serviceStatus.dwWaitHint = waitHint;
 
-        if (currentState == SERVICE_RUNNING)
+       if (currentState == SERVICE_RUNNING)
         {
-            g_serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_SESSIONCHANGE;
+            g_serviceStatus.dwControlsAccepted =
+                SERVICE_ACCEPT_STOP |
+                SERVICE_ACCEPT_SHUTDOWN |
+                SERVICE_ACCEPT_SESSIONCHANGE;
         }
         else
         {
