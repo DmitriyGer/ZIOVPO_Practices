@@ -1,49 +1,102 @@
-# Антивирус: Windows-служба и графическое приложение
+# ZIOVPO Antivirus
 
-## Практика №1
+Проект состоит из двух нативных Windows-компонентов:
 
-### Задание
-Необходимо создать графическое приложение под ОС Windows.
-Язык программирования: C/C++
-Фреймворк: Win32 API/MFC или WinUI 3.0
-Функциональность приложения:
-1) Приложение при запуске должно добавлять иконку в область уведомлений панели задач (трей)
-2) При клике на иконку левой копкой мыши должно показываться главное окно
-3) При клике на иконку правой копкой мыши должно показываться контекстное меню
-4) Контекстное меню должно содержать пункт "Открыть", при клике должно показываться главное окно приложения
-5) Контекстное меню должно содержать пункт "Выход", при клике приложение должно завершать работу
-6) При пересоздании панели задач приложение должно добавлять иконку в область уведомлений панели задач (трей)
-7) Приложение должно поддерживать запуск в режиме, когда главное окно не показывается
-8) При закрытии главного окна приложение должно продолжать работу в фоновом режиме
-9) Меню главного окна должно содержать пункт "Файл", который содержит вложенный пункт "Выход", при клике по которому приложение завершает работу.
-10) Приложение не должно запускаться более одного раза для одного пользователя. При обнаружении факта повторного запуска приложение должно завершить работу до момента добавления иконки в область уведомления панели задач. Для реализации можно использовать именованные мьютексы.
-11) Обеспечить сборку приложения на конвейере с использованием MSBuild или CMake.
+- `TrayApp.exe` — пользовательское tray-приложение.
+- `TrayService.exe` — Windows-служба, которая запускает tray-приложение и фоновые проверки.
 
-За использование WinUI 3.0 и CMake начисляются дополнительные баллы
+Installer и CI/CD для ветки `PR_5` описаны в [Installer/README.md](Installer/README.md).
 
-В качестве ответа прикрепите ссылку на Merge Request
+## Локальная сборка приложения
 
-## Практика №2
+Сборка solution:
 
-### Задание 
+```powershell
+msbuild TrayApp.sln /m /nologo /verbosity:minimal /p:Configuration=Release /p:Platform=x64
+```
 
-Базовые функции Windows-служба и взаимодействие с графическим приложением
+Сборка в отдельную директорию, как в GitHub Actions:
 
-Формат сдачи: Кликабельная ссылка на GitLab Merge Request или GitHub Pull Request, включающая только изменения по данному заданию
-Операционная система: Windows
-Язык программирования: C/C++
-Технология межпроцессного взаимодействия: Windows RPC с транспортом ALPC
+```powershell
+$outDir = Join-Path $PWD "out"
+msbuild TrayApp.sln /m /nologo /verbosity:minimal /p:Configuration=Release /p:Platform=x64 /p:OutDir="$outDir\"
+```
 
-Требования к Windows-службе:
-1) Служба должна запускать графическое приложение во всех терминальных сессиях (кроме сесии 0). Запускаемое приложение должно выполняться от имени владельца терминальной сесии. Главное окно при запуске должны быть скрыто
-2) Служба должна отслеживать входы новых польлзователей и запускать в их терминальных сессиях графическое приложение. Запускаемое приложение должно выполняться от имени владельца терминальной сесии. Главное окно при запуске должны быть скрыто.
-3) Служба должна отключить обработку сигналов Stop и Shutdown
-4) Служба должна запустить сервер Windows RPC. В качестве транспорта следует использовать ALPC. Служба работает до тех пор, пока сервер Windows RPC не будет остановлен
-5) Служба должна зарегистрировать для клиентов интерфейс в Windows RPC, с помощь которого клиенты смогут останавливать сервис
-6) При остановке служба должна завершить все запущенные графические приложения
+Запуск тестов:
 
-Требования к графическому приложению:
-1) Графическое приложение при старте должно проверять состояние Windows-службы. Если она остановлена, графическое приложение должно её запустить и дождаться состояния Running, после чего завершить свою работу.
-2) Графическое приложение должно проверять, кто является родительским процессом. Если родительским процессом не является Windows-служба приложение должно завершить свою работу
-3) Пункт Выход в главном меню главного окна должен останавливать Windows-службу
-4) Пункт Выход в контекстном меню иконки в области уведомлений панели задач должен останавливать Windows-службу
+```powershell
+.\x64\Release\AntivirusEngineTests.exe
+```
+
+Если сборка шла с `OutDir`, запускайте `.\out\AntivirusEngineTests.exe`.
+
+## Локальная сборка installer
+
+1. Восстановить WiX tool manifest:
+
+```powershell
+dotnet tool restore
+```
+
+2. Установить WiX extensions:
+
+```powershell
+dotnet tool run wix extension add -g WixToolset.Util.wixext/5.0.2
+dotnet tool run wix extension add -g WixToolset.BootstrapperApplications.wixext/5.0.2
+```
+
+3. Собрать installer:
+
+```powershell
+msbuild Installer\TrayInstaller.wixproj /m /nologo /verbosity:minimal /t:Build /p:Configuration=Release /p:Platform=x64 /p:ProductVersion=1.0.0
+```
+
+Если приложение собрано в нестандартную папку:
+
+```powershell
+msbuild Installer\TrayInstaller.wixproj /m /nologo /verbosity:minimal /t:Build /p:Configuration=Release /p:Platform=x64 /p:ProductVersion=1.0.0 /p:AppBuildOutputDir="$outDir"
+```
+
+Выходные installer-файлы создаются в `Installer\artifacts\Release\x64\output`.
+
+## Зависимости installer
+
+- Требуется только Microsoft Visual C++ Redistributable x64.
+- `TrayApp.exe` и `TrayService.exe` собраны с динамическим runtime (`/MD`), что подтверждается `*_MD.tlog`.
+- Qt не используется.
+- Windows App SDK не используется.
+- .NET runtime для самих `TrayApp.exe` и `TrayService.exe` не требуется.
+
+Bundle устанавливает `vc_redist.x64.exe`, если на машине отсутствует подходящая версия VC++ runtime. MSI не пытается удалять shared/system dependencies вручную.
+
+## Что публикует CI
+
+Workflow [build-msbuild.yml](.github/workflows/build-msbuild.yml) публикует два artifact:
+
+- `ziovpo-antivirus-app-x64` — сырые `TrayApp.exe` и `TrayService.exe`.
+- `ziovpo-antivirus-installer-x64` — только installer-файлы: `*.msi` и bundle `*.exe`, если bundle включён.
+
+В installer artifact не попадают `*.pdb`, `*.wixpdb`, тестовые бинарники и прочий build garbage.
+
+## Ручная проверка install/uninstall
+
+Запуск полной проверки installer из elevated PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Installer\scripts\verify-install.ps1
+```
+
+Проверка конкретного bundle или MSI:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Installer\scripts\verify-install.ps1 -InstallerPath Installer\artifacts\Release\x64\output\ZIOVPOAntivirus-1.0.0-x64-setup.exe
+```
+
+`verify-install.ps1` проверяет:
+
+- установку `TrayApp.exe` и `TrayService.exe` в `%ProgramFiles%\ZIOVPO Antivirus`;
+- регистрацию службы `TrayService`;
+- `StartMode = Auto`;
+- `PathName` службы, указывающий на установленный `TrayService.exe`;
+- создание `%ProgramData%\TrayApp\Antivirus\default.avdb`;
+- uninstall с удалением службы, install directory и `%ProgramData%\TrayApp\Antivirus`.

@@ -1,0 +1,50 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <?define BundleName = "ZIOVPO Antivirus Setup" ?>
+  <?define Manufacturer = "Dmitriy Ger" ?>
+
+  <Bundle Name="$(BundleName)"
+          Manufacturer="$(Manufacturer)"
+          Version="$(ProductVersion)"
+          UpgradeCode="{F6C36CF6-BE0F-48F4-87FB-FA4F2A6D82B1}"
+          Compressed="yes">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="rtfLicense"
+                                             LicenseFile="$(sys.SOURCEFILEDIR)License.rtf" />
+    </BootstrapperApplication>
+
+    <util:RegistrySearch Id="VCRedistInstalledSearch"
+                         Variable="VCRedistInstalled"
+                         Root="HKLM"
+                         Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+                         Value="Installed"
+                         Result="value"
+                         Bitness="always64" />
+
+    <util:RegistrySearch Id="VCRedistVersionSearch"
+                         Variable="VCRedistVersion"
+                         Root="HKLM"
+                         Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+                         Value="Version"
+                         Result="value"
+                         Bitness="always64" />
+
+    <Chain>
+      <ExePackage Id="VCRedistX64"
+                  DisplayName="Microsoft Visual C++ 2015-2022 Redistributable (x64)"
+                  SourceFile="$(VcRedistPath)"
+                  InstallArguments="/install /quiet /norestart"
+                  RepairArguments="/repair /quiet /norestart"
+                  UninstallArguments="/uninstall /quiet /norestart"
+                  DetectCondition="VCRedistInstalled = 1 AND VCRedistVersion >= v$(VcRuntimeMinimumVersion)"
+                  Permanent="yes"
+                  Vital="yes" />
+
+      <MsiPackage Id="ZIOVPOAntivirusMsi"
+                  SourceFile="$(MsiPath)"
+                  Vital="yes"
+                  Visible="no" />
+    </Chain>
+  </Bundle>
+</Wix>

@@ -169,7 +169,13 @@ DWORD WINAPI ServiceCtrlHandlerEx(
 
     case SERVICE_CONTROL_STOP:
     case SERVICE_CONTROL_SHUTDOWN:
-        return ERROR_CALL_NOT_IMPLEMENTED;
+        if (g_stopRequestedEvent == nullptr)
+        {
+            return ERROR_INVALID_HANDLE;
+        }
+
+        ReportServiceStatus(SERVICE_STOP_PENDING, NO_ERROR, 5000);
+        return SetEvent(g_stopRequestedEvent) ? NO_ERROR : GetLastError();
 
     case SERVICE_CONTROL_SESSIONCHANGE:
         if (eventType == WTS_SESSION_LOGON && eventData != nullptr)

@@ -1,0 +1,63 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
+    <WixToolCommand Condition="'$(WixToolCommand)' == ''">dotnet tool run wix</WixToolCommand>
+    <WixVersion Condition="'$(WixVersion)' == ''">5.0.2</WixVersion>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <VcRuntimeMinimumVersion Condition="'$(VcRuntimeMinimumVersion)' == ''">14.50.35717.0</VcRuntimeMinimumVersion>
+    <VcRedistUrl Condition="'$(VcRedistUrl)' == ''">https://aka.ms/vs/17/release/vc_redist.x64.exe</VcRedistUrl>
+    <BundleEnabled Condition="'$(BundleEnabled)' == '' and Exists('$(MSBuildProjectDirectory)\Bundle.wxs')">true</BundleEnabled>
+    <BundleEnabled Condition="'$(BundleEnabled)' == ''">false</BundleEnabled>
+
+    <RepoRoot>$(MSBuildProjectDirectory)\..</RepoRoot>
+    <AppBuildOutputDir Condition="'$(AppBuildOutputDir)' == ''">$(RepoRoot)\x64\$(Configuration)</AppBuildOutputDir>
+    <ArtifactsRoot>$(MSBuildProjectDirectory)\artifacts\$(Configuration)\$(Platform)</ArtifactsRoot>
+    <StageDir>$(ArtifactsRoot)\stage</StageDir>
+    <OutputDir>$(ArtifactsRoot)\output</OutputDir>
+    <GeneratedFilesWxs>$(StageDir)\GeneratedFiles.wxs</GeneratedFilesWxs>
+    <MsiOutputPath>$(OutputDir)\ZIOVPOAntivirus-$(ProductVersion)-x64.msi</MsiOutputPath>
+    <BundleOutputPath>$(OutputDir)\ZIOVPOAntivirus-$(ProductVersion)-x64-setup.exe</BundleOutputPath>
+  </PropertyGroup>
+
+  <Target Name="ValidateInputs">
+    <Error Condition="'$(Platform)' != 'x64'" Text="Only x64 installer builds are supported." />
+    <Error Condition="!Exists('$(AppBuildOutputDir)\TrayApp.exe')" Text="TrayApp.exe not found in $(AppBuildOutputDir)." />
+    <Error Condition="!Exists('$(AppBuildOutputDir)\TrayService.exe')" Text="TrayService.exe not found in $(AppBuildOutputDir)." />
+  </Target>
+
+  <Target Name="PrepareOutputDirectories" DependsOnTargets="ValidateInputs">
+    <RemoveDir Directories="$(ArtifactsRoot)" Condition="Exists('$(ArtifactsRoot)')" />
+    <MakeDir Directories="$(StageDir)" />
+    <MakeDir Directories="$(OutputDir)" />
+  </Target>
+
+  <Target Name="EnsureWixExtensions" DependsOnTargets="PrepareOutputDirectories">
+    <Exec Command="$(WixToolCommand) extension add -g WixToolset.Util.wixext/$(WixVersion)" />
+    <Exec Command="$(WixToolCommand) extension add -g WixToolset.BootstrapperApplications.wixext/$(WixVersion)" Condition="'$(BundleEnabled)' == 'true'" />
+  </Target>
+
+  <Target Name="PrepareStage" DependsOnTargets="EnsureWixExtensions">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\scripts\collect-artifacts.ps1&quot; -AppOutputDir &quot;$(AppBuildOutputDir)&quot; -StageDir &quot;$(StageDir)&quot; -VcRedistUrl &quot;$(VcRedistUrl)&quot;" />
+  </Target>
+
+  <Target Name="BuildMsi" DependsOnTargets="PrepareStage">
+    <Exec Command="$(WixToolCommand) build -nologo -arch $(InstallerPlatform) -ext WixToolset.Util.wixext -d AppSourceDir=&quot;$(StageDir)&quot; -d ProductVersion=$(ProductVersion) -o &quot;$(MsiOutputPath)&quot; &quot;$(MSBuildProjectDirectory)\Product.wxs&quot; &quot;$(GeneratedFilesWxs)&quot;" />
+  </Target>
+
+  <Target Name="BuildBundle" DependsOnTargets="BuildMsi" Condition="'$(BundleEnabled)' == 'true'">
+    <Exec Command="$(WixToolCommand) build -nologo -arch $(InstallerPlatform) -ext WixToolset.Util.wixext -ext WixToolset.BootstrapperApplications.wixext -d ProductVersion=$(ProductVersion) -d MsiPath=&quot;$(MsiOutputPath)&quot; -d VcRedistPath=&quot;$(StageDir)\vc_redist.x64.exe&quot; -d VcRuntimeMinimumVersion=$(VcRuntimeMinimumVersion) -o &quot;$(BundleOutputPath)&quot; &quot;$(MSBuildProjectDirectory)\Bundle.wxs&quot;" />
+  </Target>
+
+  <Target Name="ValidateOutputs" DependsOnTargets="BuildMsi;BuildBundle">
+    <Error Condition="!Exists('$(MsiOutputPath)')" Text="MSI output was not created: $(MsiOutputPath)" />
+    <Error Condition="'$(BundleEnabled)' == 'true' and !Exists('$(BundleOutputPath)')" Text="Bundle output was not created: $(BundleOutputPath)" />
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="ValidateOutputs" />
+
+  <Target Name="Clean">
+    <RemoveDir Directories="$(ArtifactsRoot)" Condition="Exists('$(ArtifactsRoot)')" />
+  </Target>
+</Project>

@@ -31,6 +31,7 @@ cmake-build-*/
 *.obj
 *.pch
 *.pdb
+*.wixpdb
 *.ilk
 *.log
 *.tmp
@@ -47,3 +48,6 @@ Desktop.ini
 # =========================
 .vscode/
 Temp
+out/
+artifacts/
+Installer/artifacts/
