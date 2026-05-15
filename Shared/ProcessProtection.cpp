@@ -696,20 +696,18 @@ bool ProcessProtection::HardenServiceSecurity()
     std::vector<AceSpec> requiredAces;
     requiredAces.push_back(
         AceSpec{ systemSid.Get(), SET_ACCESS, SERVICE_ALL_ACCESS, NO_INHERITANCE });
-    requiredAces.push_back(
-        AceSpec{ usersSid.Get(), DENY_ACCESS, SERVICE_STOP, NO_INHERITANCE });
 
-    DWORD administratorsDenyMask = 0;
-    if (policy.denyServiceStopForAdministrators)
-    {
-        administratorsDenyMask |= SERVICE_STOP;
-    }
+    // DWORD administratorsDenyMask = 0;
+    // if (policy.denyServiceStopForAdministrators)
+    // {
+    //     administratorsDenyMask |= SERVICE_STOP;
+    // }
 
-    if (administratorsDenyMask != 0)
-    {
-        requiredAces.push_back(
-            AceSpec{ administratorsSid.Get(), DENY_ACCESS, administratorsDenyMask, NO_INHERITANCE });
-    }
+    // if (administratorsDenyMask != 0)
+    // {
+    //     requiredAces.push_back(
+    //         AceSpec{ administratorsSid.Get(), DENY_ACCESS, administratorsDenyMask, NO_INHERITANCE });
+    // }
 
     PACL updatedDacl = nullptr;
     if (!BuildUpdatedDacl(L"HardenServiceSecurity", existingDacl, requiredAces, updatedDacl))
