@@ -1,0 +1,100 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <?define ProductName = "ZIOVPO Antivirus" ?>
+  <?define Manufacturer = "Dmitriy Ger" ?>
+  <?define ServiceName = "TrayService" ?>
+
+  <Package Name="$(ProductName)"
+           Manufacturer="$(Manufacturer)"
+           Version="$(ProductVersion)"
+           UpgradeCode="{A96F1DA3-5EB4-4A4F-9D40-EC4C93D9C8F4}"
+           Language="1033"
+           Scope="perMachine"
+           InstallerVersion="500"
+           Compressed="yes">
+    <SummaryInformation Description="$(ProductName) Installer"
+                        Manufacturer="$(Manufacturer)" />
+
+    <Launch Condition="VersionNT64"
+            Message="ZIOVPO Antivirus requires a 64-bit version of Windows." />
+
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="AVDATABASEDIR" Value="%ProgramData%\TrayApp\Antivirus" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ZIOVPO Antivirus" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="TRAYAPPDATAROOT" Name="TrayApp">
+        <Directory Id="AVDATABASEFOLDER" Name="Antivirus" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="CoreApplicationComponents">
+      <Component Id="InstallFolderMetadataComponent" Directory="INSTALLFOLDER">
+        <CreateFolder />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\ZIOVPO Antivirus"
+                       Name="InstallDir"
+                       Type="string"
+                       Value="[INSTALLFOLDER]"
+                       KeyPath="yes" />
+      </Component>
+
+      <Component Id="TrayAppComponent" Directory="INSTALLFOLDER">
+        <File Id="TrayAppExe"
+              Source="$(AppSourceDir)\TrayApp.exe"
+              KeyPath="yes"
+              Checksum="yes" />
+      </Component>
+
+      <Component Id="TrayServiceComponent" Directory="INSTALLFOLDER">
+        <File Id="TrayServiceExe"
+              Source="$(AppSourceDir)\TrayService.exe"
+              KeyPath="yes"
+              Checksum="yes" />
+        <ServiceInstall Id="TrayServiceInstaller"
+                        Name="$(ServiceName)"
+                        DisplayName="ZIOVPO Antivirus Service"
+                        Description="Starts the ZIOVPO Antivirus tray application and background antivirus engine."
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Account="LocalSystem" />
+        <ServiceControl Id="TrayServiceController"
+                        Name="$(ServiceName)"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="AppDataCleanupComponents">
+      <Component Id="AvDatabaseFolderComponent" Directory="AVDATABASEFOLDER">
+        <CreateFolder />
+        <util:RemoveFolderEx Property="AVDATABASEDIR" On="uninstall" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\ZIOVPO Antivirus"
+                       Name="AntivirusDataPath"
+                       Type="string"
+                       Value="[AVDATABASEDIR]"
+                       KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="$(ProductName)" Level="1">
+      <ComponentGroupRef Id="CoreApplicationComponents" />
+      <ComponentGroupRef Id="SupplementalRuntimeFiles" />
+      <ComponentGroupRef Id="AppDataCleanupComponents" />
+    </Feature>
+  </Package>
+</Wix>

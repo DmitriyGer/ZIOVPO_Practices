@@ -1,14 +1,203 @@
 #include "ServiceApiState.h"
 
+#include "AntivirusDatabaseStore.h"
+#include "AntivirusScanner.h"
+#include "AntivirusUpdateClient.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cwchar>
+#include <filesystem>
 #include <optional>
 #include <utility>
 
 namespace
 {
+    // constexpr wchar_t kApiBaseUrl[] = L"https://10.11.134.140:8443/";
     constexpr wchar_t kApiBaseUrl[] = L"https://192.168.1.56:8443/";
+    constexpr size_t kMaxRpcDirectoryResults = 32;
+    constexpr auto kAvDatabaseUpdateCheckInterval = std::chrono::minutes(30);
+    constexpr auto kFixedDriveScanInterval = std::chrono::hours(24);
+    constexpr bool kEnableScheduledFixedDriveScan = true;
+
+    // Copies text into a fixed-size RPC wchar_t buffer.
+    template <size_t Size>
+    void CopyToRpcBuffer(const std::wstring& source, wchar_t (&destination)[Size])
+    {
+        destination[0] = L'\0';
+        if (!source.empty())
+        {
+            wcsncpy_s(destination, Size, source.c_str(), _TRUNCATE);
+        }
+    }
+
+    // Converts an internal scan status to the RPC verdict enum.
+    TrayRpcAvScanVerdict ToRpcVerdict(Antivirus::AvScanStatus status)
+    {
+        switch (status)
+        {
+        case Antivirus::AvScanStatus::Detected:
+            return TRAY_RPC_AV_SCAN_INFECTED;
+        case Antivirus::AvScanStatus::Error:
+            return TRAY_RPC_AV_SCAN_ERROR;
+        case Antivirus::AvScanStatus::Clean:
+        default:
+            return TRAY_RPC_AV_SCAN_CLEAN;
+        }
+    }
+
+    // Converts an internal object type to the RPC object type enum.
+    TrayRpcAvObjectType ToRpcObjectType(Antivirus::AvObjectType objectType)
+    {
+        switch (objectType)
+        {
+        case Antivirus::AvObjectType::Pe:
+            return TRAY_RPC_AV_OBJECT_PE;
+        case Antivirus::AvObjectType::ScriptText:
+            return TRAY_RPC_AV_OBJECT_SCRIPT_TEXT;
+        case Antivirus::AvObjectType::Unknown:
+        default:
+            return TRAY_RPC_AV_OBJECT_UNKNOWN;
+        }
+    }
+
+    // Converts an internal database load status to the RPC enum.
+    TrayRpcAvDatabaseLoadStatus ToRpcDatabaseLoadStatus(Antivirus::AvDatabaseLoadStatus status)
+    {
+        return status == Antivirus::AvDatabaseLoadStatus::Loaded
+            ? TRAY_RPC_AV_DATABASE_LOADED
+            : TRAY_RPC_AV_DATABASE_NOT_LOADED;
+    }
+
+    // Converts database source metadata to text for RPC/UI.
+    std::wstring AvDatabaseSourceToText(Antivirus::AvDatabaseFileSource source)
+    {
+        switch (source)
+        {
+        case Antivirus::AvDatabaseFileSource::Main:
+            return L"main";
+        case Antivirus::AvDatabaseFileSource::Backup:
+            return L"backup";
+        case Antivirus::AvDatabaseFileSource::Default:
+            return L"default";
+        case Antivirus::AvDatabaseFileSource::Updated:
+            return L"updated";
+        case Antivirus::AvDatabaseFileSource::ForcedUpdate:
+            return L"forcedUpdate";
+        case Antivirus::AvDatabaseFileSource::None:
+        default:
+            return L"none";
+        }
+    }
+
+    // Converts an internal file scan result to a fixed-size RPC result.
+    void FillRpcFileScanResult(
+        const Antivirus::AvFileScanResult& source,
+        TrayRpcAvFileScanResult* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        destination->verdict = ToRpcVerdict(source.Status);
+        CopyToRpcBuffer(source.Path, destination->path);
+        destination->objectType = ToRpcObjectType(source.ObjectType);
+        destination->detectionOffset = static_cast<hyper>(source.DetectionOffset);
+        CopyToRpcBuffer(source.RecordId, destination->recordId);
+        CopyToRpcBuffer(source.ObjectSignatureHex, destination->objectSignatureHex);
+        CopyToRpcBuffer(source.Message, destination->message);
+    }
+
+    // Converts an internal directory scan result to a fixed-size RPC result.
+    void FillRpcDirectoryScanResult(
+        const Antivirus::AvDirectoryScanResult& source,
+        TrayRpcAvDirectoryScanResult* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        CopyToRpcBuffer(source.Path, destination->path);
+        destination->totalScanned = static_cast<hyper>(source.TotalScanned);
+        destination->infectedCount = static_cast<hyper>(source.InfectedCount);
+        destination->errorCount = static_cast<hyper>(source.ErrorCount);
+        CopyToRpcBuffer(source.Message, destination->message);
+
+        const size_t copyCount = (std::min)(source.Results.size(), kMaxRpcDirectoryResults);
+        destination->resultCount = static_cast<int>(copyCount);
+        destination->truncated = source.Results.size() > kMaxRpcDirectoryResults ? 1 : 0;
+        for (size_t index = 0; index < copyCount; ++index)
+        {
+            FillRpcFileScanResult(source.Results[index], &destination->results[index]);
+        }
+    }
+
+    // Converts database metadata to the RPC structure.
+    void FillRpcAvDatabaseInfo(
+        const Antivirus::AvDatabaseInfo& source,
+        TrayRpcAvDatabaseInfo* destination)
+    {
+        if (destination == nullptr)
+        {
+            return;
+        }
+
+        *destination = {};
+        destination->recordCount = static_cast<hyper>(source.RecordCount);
+        destination->loadStatus = ToRpcDatabaseLoadStatus(source.LoadStatus);
+        CopyToRpcBuffer(AvDatabaseSourceToText(source.Source), destination->source);
+        CopyToRpcBuffer(source.LastUpdateStatus, destination->lastUpdateStatus);
+        CopyToRpcBuffer(source.VerifierName, destination->verifierName);
+        destination->skippedRecordCount = static_cast<hyper>(source.SkippedRecordCount);
+        destination->schedulerEnabled = source.SchedulerEnabled ? 1 : 0;
+        destination->monitoringEnabled = source.MonitoringEnabled ? 1 : 0;
+
+        if (source.ReleaseDateUtc != std::chrono::system_clock::time_point{})
+        {
+            destination->hasReleaseDate = 1;
+            destination->releaseEpochSeconds = static_cast<hyper>(
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    source.ReleaseDateUtc.time_since_epoch()).count());
+        }
+
+        if (source.LastSuccessfulLoadUtc != std::chrono::system_clock::time_point{})
+        {
+            destination->hasLastSuccessfulLoad = 1;
+            destination->lastSuccessfulLoadEpochSeconds = static_cast<hyper>(
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    source.LastSuccessfulLoadUtc.time_since_epoch()).count());
+        }
+
+        if (source.LastManifestVerifiedUtc != std::chrono::system_clock::time_point{})
+        {
+            destination->hasLastManifestVerified = 1;
+            destination->lastManifestVerifiedEpochSeconds = static_cast<hyper>(
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    source.LastManifestVerifiedUtc.time_since_epoch()).count());
+        }
+    }
+
+    // Converts antivirus access status to a user-facing scan error message.
+    std::wstring AntivirusAccessStatusToMessage(TrayRpcStatusCode status)
+    {
+        switch (status)
+        {
+        case TRAY_RPC_NO_LICENSE:
+            return L"Active license is required for scanning.";
+        case TRAY_RPC_LICENSE_EXPIRED:
+            return L"License is expired. Scanning is unavailable.";
+        case TRAY_RPC_LICENSE_BLOCKED:
+            return L"License is blocked. Scanning is unavailable.";
+        case TRAY_RPC_NOT_AUTHENTICATED:
+            return L"Authentication is required for scanning.";
+        default:
+            return L"Antivirus scanning is unavailable.";
+        }
+    }
 }
 
 ServiceApiState::ServiceApiState()
@@ -36,6 +225,11 @@ void ServiceApiState::Initialize()
     m_lastDeviceMac.clear();
     m_lastActivationKey.clear();
     m_licenseTasksRunning = false;
+    LoadAntivirusDatabaseLocked();
+    m_avDatabase.SetRuntimeFeatureStatus(kEnableScheduledFixedDriveScan, false);
+    const auto now = std::chrono::system_clock::now();
+    m_nextDatabaseUpdateCheckUtc = now + kAvDatabaseUpdateCheckInterval;
+    m_nextFixedDriveScanUtc = now + kFixedDriveScanInterval;
 }
 
 // Освобождает состояние службы при завершении.
@@ -43,7 +237,11 @@ void ServiceApiState::Shutdown()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     ClearAuthAndLicenseLocked();
+    m_avDatabase.Clear();
     m_initialized = false;
+    m_databaseUpdateRunning = false;
+    m_fixedDriveScanRunning = false;
+    m_lastScheduledScanResult = {};
 }
 
 // Возвращает безопасную информацию о текущей аутентификации.
@@ -207,6 +405,7 @@ TrayRpcStatusCode ServiceApiState::ActivateProduct(
 
         const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
         StartLicenseDependentTasksIfAllowedLocked();
+        LoadAntivirusDatabaseLocked();
         FillLicenseInfoLocked(licenseInfo, licenseStatus);
         return licenseStatus;
     }
@@ -247,56 +446,435 @@ TrayRpcStatusCode ServiceApiState::ActivateProduct(
 // Выполняет периодическое обновление токенов и лицензионного тикета.
 void ServiceApiState::Tick()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_initialized)
+    bool shouldCheckDatabaseUpdate = false;
+    bool shouldRunFixedDriveScan = false;
+
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
+        {
+            return;
+        }
+
+        const auto now = std::chrono::system_clock::now();
+
+        if (m_authenticated)
+        {
+            const auto nextAuthRefresh = m_session.GetNextAuthRefreshTimeUtc();
+            if (nextAuthRefresh.has_value() && nextAuthRefresh.value() <= now)
+            {
+                if (!TryRefreshTokensLocked())
+                {
+                    ClearAuthAndLicenseLocked();
+                    return;
+                }
+            }
+        }
+
+        if (!m_authenticated)
+        {
+            StopLicenseDependentTasksLocked();
+        }
+        else
+        {
+            ApiIntegration::LicenseState licenseState = m_session.GetLicenseState();
+            if (!licenseState.hasLicense)
+            {
+                StopLicenseDependentTasksLocked();
+            }
+            else
+            {
+                if (licenseState.nextRefreshAtUtc.has_value() && licenseState.nextRefreshAtUtc.value() <= now)
+                {
+                    if (!TryRefreshLicenseTicketLocked())
+                    {
+                        m_session.ClearLicense();
+                        StopLicenseDependentTasksLocked();
+                        return;
+                    }
+
+                    licenseState = m_session.GetLicenseState();
+                }
+
+                if (EnsureLicenseForAntivirusOperationLocked() == TRAY_RPC_OK)
+                {
+                    StartLicenseDependentTasksIfAllowedLocked();
+                }
+            }
+        }
+
+        if (m_nextDatabaseUpdateCheckUtc == std::chrono::system_clock::time_point{}
+            || m_nextDatabaseUpdateCheckUtc <= now)
+        {
+            shouldCheckDatabaseUpdate = !m_databaseUpdateRunning;
+            m_databaseUpdateRunning = shouldCheckDatabaseUpdate;
+            m_nextDatabaseUpdateCheckUtc = now + kAvDatabaseUpdateCheckInterval;
+        }
+
+        if (kEnableScheduledFixedDriveScan
+            && (m_nextFixedDriveScanUtc == std::chrono::system_clock::time_point{}
+                || m_nextFixedDriveScanUtc <= now))
+        {
+            shouldRunFixedDriveScan = !m_fixedDriveScanRunning;
+            m_fixedDriveScanRunning = shouldRunFixedDriveScan;
+            m_nextFixedDriveScanUtc = now + kFixedDriveScanInterval;
+        }
     }
 
-    const auto now = std::chrono::system_clock::now();
-
-    if (m_authenticated)
+    if (shouldCheckDatabaseUpdate)
     {
-        const auto nextAuthRefresh = m_session.GetNextAuthRefreshTimeUtc();
-        if (nextAuthRefresh.has_value() && nextAuthRefresh.value() <= now)
+        TryInstallPendingAntivirusDatabase();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_databaseUpdateRunning = false;
+    }
+
+    if (shouldRunFixedDriveScan)
+    {
+        RunScheduledFixedDriveScan();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_fixedDriveScanRunning = false;
+    }
+}
+
+// Returns current in-memory antivirus database metadata.
+Antivirus::AvDatabaseInfo ServiceApiState::GetAntivirusDatabaseInfo()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_avDatabase.GetInfo();
+}
+
+// Scans one selected file through the antivirus engine.
+TrayRpcStatusCode ServiceApiState::ScanFile(const std::wstring& path, TrayRpcAvFileScanResult* scanResult)
+{
+    if (scanResult == nullptr || path.empty())
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
         {
-            if (!TryRefreshTokensLocked())
+            Antivirus::AvFileScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Status = Antivirus::AvScanStatus::Error;
+            errorResult.Message = L"TrayService is not initialized.";
+            FillRpcFileScanResult(errorResult, scanResult);
+            return TRAY_RPC_SERVER_ERROR;
+        }
+
+        databaseSnapshot = m_avDatabase;
+
+        const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
+        if (licenseStatus != TRAY_RPC_OK)
+        {
+            Antivirus::AvFileScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Status = Antivirus::AvScanStatus::Error;
+            errorResult.Message = AntivirusAccessStatusToMessage(licenseStatus);
+            FillRpcFileScanResult(errorResult, scanResult);
+            return licenseStatus;
+        }
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvFileScanResult result = scanner.ScanFile(std::filesystem::path(path));
+    FillRpcFileScanResult(result, scanResult);
+    return TRAY_RPC_OK;
+}
+
+// Recursively scans one selected directory through the antivirus engine.
+TrayRpcStatusCode ServiceApiState::ScanDirectory(
+    const std::wstring& path,
+    TrayRpcAvDirectoryScanResult* scanResult)
+{
+    if (scanResult == nullptr || path.empty())
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Message = L"TrayService is not initialized.";
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return TRAY_RPC_SERVER_ERROR;
+        }
+
+        databaseSnapshot = m_avDatabase;
+
+        const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
+        if (licenseStatus != TRAY_RPC_OK)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = path;
+            errorResult.Message = AntivirusAccessStatusToMessage(licenseStatus);
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return licenseStatus;
+        }
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvDirectoryScanResult result = scanner.ScanDirectory(std::filesystem::path(path));
+    FillRpcDirectoryScanResult(result, scanResult);
+    return TRAY_RPC_OK;
+}
+
+TrayRpcStatusCode ServiceApiState::ScanFixedDrives(TrayRpcAvDirectoryScanResult* scanResult)
+{
+    if (scanResult == nullptr)
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_initialized)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = L"<fixed-drives>";
+            errorResult.Message = L"TrayService is not initialized.";
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return TRAY_RPC_SERVER_ERROR;
+        }
+
+        databaseSnapshot = m_avDatabase;
+
+        const TrayRpcStatusCode licenseStatus = EnsureLicenseForAntivirusOperationLocked();
+        if (licenseStatus != TRAY_RPC_OK)
+        {
+            Antivirus::AvDirectoryScanResult errorResult = {};
+            errorResult.Path = L"<fixed-drives>";
+            errorResult.Message = AntivirusAccessStatusToMessage(licenseStatus);
+            ++errorResult.ErrorCount;
+            FillRpcDirectoryScanResult(errorResult, scanResult);
+            return licenseStatus;
+        }
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvDirectoryScanResult result = scanner.ScanFixedDrives();
+    FillRpcDirectoryScanResult(result, scanResult);
+    return TRAY_RPC_OK;
+}
+
+// Returns antivirus database metadata for RPC callers.
+TrayRpcStatusCode ServiceApiState::GetAvDatabaseInfo(TrayRpcAvDatabaseInfo* databaseInfo)
+{
+    if (databaseInfo == nullptr)
+    {
+        return TRAY_RPC_INVALID_ARGUMENT;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    FillRpcAvDatabaseInfo(m_avDatabase.GetInfo(), databaseInfo);
+    return TRAY_RPC_OK;
+}
+
+// Loads demo antivirus records into the in-memory database.
+void ServiceApiState::LoadAntivirusDatabaseLocked()
+{
+    const Antivirus::DemoHmacSha256SignatureVerifier demoVerifier;
+    const Antivirus::CompositeSignatureVerifier verifier;
+    const Antivirus::AvDatabaseStoragePaths paths = Antivirus::AvDatabaseStore::GetDefaultStoragePaths();
+    Antivirus::AvDatabaseStore::EnsureDefaultDatabase(paths, demoVerifier);
+
+    Antivirus::AvDatabaseLoadResult loadResult =
+        Antivirus::AvDatabaseStore::LoadDatabaseFile(
+            paths.MainDatabasePath,
+            m_avDatabase,
+            verifier,
+            Antivirus::AvDatabaseFileSource::Main);
+    if (!loadResult.Loaded && loadResult.Message.find(L"manifest signature") != std::wstring::npos)
+    {
+        ApiIntegration::AuthTokens tokens = {};
+        if (m_session.TryGetAuthTokens(tokens))
+        {
+            const Antivirus::AvUpdateClient updateClient(m_apiClient);
+            const Antivirus::AvUpdateDownloadResult downloadResult =
+                updateClient.DownloadFullDatabase(
+                    tokens.accessToken,
+                    paths.IncomingDatabasePath,
+                    paths.TemporaryDatabasePath,
+                    verifier,
+                    demoVerifier);
+            if (downloadResult.Downloaded)
             {
-                ClearAuthAndLicenseLocked();
-                return;
+                Antivirus::InMemoryAvDatabase updatedDatabase;
+                Antivirus::AvDatabaseLoadResult installResult =
+                    Antivirus::AvDatabaseStore::InstallUpdateFromFile(
+                        paths,
+                        paths.IncomingDatabasePath,
+                        updatedDatabase,
+                        verifier,
+                        demoVerifier);
+                if (installResult.Loaded)
+                {
+                    m_avDatabase = updatedDatabase;
+                    m_avDatabase.SetLoadMetadata(
+                        Antivirus::AvDatabaseFileSource::ForcedUpdate,
+                        std::chrono::system_clock::now(),
+                        L"Forced network antivirus database update installed.",
+                        verifier.AlgorithmName(),
+                        installResult.SkippedRecordCount,
+                        std::chrono::system_clock::now());
+                    m_avDatabase.SetRuntimeFeatureStatus(kEnableScheduledFixedDriveScan, false);
+                    return;
+                }
             }
         }
     }
 
-    if (!m_authenticated)
+    if (!loadResult.Loaded)
     {
-        StopLicenseDependentTasksLocked();
+        loadResult = Antivirus::AvDatabaseStore::LoadDatabaseFile(
+            paths.BackupDatabasePath,
+            m_avDatabase,
+            verifier,
+            Antivirus::AvDatabaseFileSource::Backup);
+    }
+
+    if (!loadResult.Loaded)
+    {
+        loadResult = Antivirus::AvDatabaseStore::LoadDatabaseFile(
+            paths.DefaultDatabasePath,
+            m_avDatabase,
+            verifier,
+            Antivirus::AvDatabaseFileSource::Default);
+    }
+
+    if (!loadResult.Loaded)
+    {
+        Antivirus::AvDatabaseStore::SaveDatabaseFile(
+            paths.DefaultDatabasePath,
+            paths.TemporaryDatabasePath,
+            Antivirus::AvDatabaseStore::BuildDefaultRecords(),
+            std::chrono::system_clock::now(),
+            demoVerifier);
+        loadResult = Antivirus::AvDatabaseStore::LoadDatabaseFile(
+            paths.DefaultDatabasePath,
+            m_avDatabase,
+            verifier,
+            Antivirus::AvDatabaseFileSource::Default);
+    }
+
+    if (!loadResult.Loaded)
+    {
+        m_avDatabase.LoadDemoRecords();
+        m_avDatabase.SetLoadMetadata(
+            Antivirus::AvDatabaseFileSource::Default,
+            std::chrono::system_clock::now(),
+            L"Fallback in-memory demo database loaded.");
         return;
     }
 
-    ApiIntegration::LicenseState licenseState = m_session.GetLicenseState();
-    if (!licenseState.hasLicense)
+    m_avDatabase.SetRuntimeFeatureStatus(kEnableScheduledFixedDriveScan, false);
+    SetAntivirusDatabaseStatusLocked(loadResult.Message);
+}
+
+bool ServiceApiState::TryInstallPendingAntivirusDatabase()
+{
+    const Antivirus::DemoHmacSha256SignatureVerifier demoVerifier;
+    const Antivirus::CompositeSignatureVerifier verifier;
+    const Antivirus::AvDatabaseStoragePaths paths = Antivirus::AvDatabaseStore::GetDefaultStoragePaths();
+    ApiIntegration::AuthTokens tokens = {};
     {
-        StopLicenseDependentTasksLocked();
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_session.TryGetAuthTokens(tokens);
     }
 
-    if (licenseState.nextRefreshAtUtc.has_value() && licenseState.nextRefreshAtUtc.value() <= now)
+    if (!tokens.accessToken.empty())
     {
-        if (!TryRefreshLicenseTicketLocked())
+        const Antivirus::AvUpdateClient updateClient(m_apiClient);
+        const Antivirus::AvUpdateDownloadResult downloadResult =
+            updateClient.DownloadFullDatabase(
+                tokens.accessToken,
+                paths.IncomingDatabasePath,
+                paths.TemporaryDatabasePath,
+                verifier,
+                demoVerifier);
+        if (!downloadResult.Downloaded)
         {
-            m_session.ClearLicense();
-            StopLicenseDependentTasksLocked();
-            return;
+            std::lock_guard<std::mutex> lock(m_mutex);
+            SetAntivirusDatabaseStatusLocked(downloadResult.Message);
         }
-
-        licenseState = m_session.GetLicenseState();
     }
 
-    if (EnsureLicenseForAntivirusOperationLocked() == TRAY_RPC_OK)
+    std::error_code error;
+    if (!std::filesystem::exists(paths.IncomingDatabasePath, error))
     {
-        StartLicenseDependentTasksIfAllowedLocked();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        SetAntivirusDatabaseStatusLocked(L"No pending database update.");
+        return false;
     }
+
+    Antivirus::InMemoryAvDatabase updatedDatabase;
+    const Antivirus::AvDatabaseLoadResult updateResult =
+        Antivirus::AvDatabaseStore::InstallUpdateFromFile(
+            paths,
+            paths.IncomingDatabasePath,
+            updatedDatabase,
+            verifier,
+            demoVerifier);
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (updateResult.Loaded)
+    {
+        m_avDatabase = updatedDatabase;
+        m_avDatabase.SetRuntimeFeatureStatus(kEnableScheduledFixedDriveScan, false);
+        SetAntivirusDatabaseStatusLocked(updateResult.Message);
+        return updateResult.Source == Antivirus::AvDatabaseFileSource::Updated;
+    }
+
+    SetAntivirusDatabaseStatusLocked(updateResult.Message);
+    return false;
+}
+
+void ServiceApiState::RunScheduledFixedDriveScan()
+{
+    Antivirus::InMemoryAvDatabase databaseSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        databaseSnapshot = m_avDatabase;
+    }
+
+    Antivirus::AntivirusScanner scanner(databaseSnapshot);
+    const Antivirus::AvDirectoryScanResult scanResult = scanner.ScanFixedDrives();
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_lastScheduledScanResult = scanResult;
+    }
+    std::wstring text = L"Scheduled fixed-drive scan completed. scanned=";
+    text += std::to_wstring(scanResult.TotalScanned);
+    text += L" infected=";
+    text += std::to_wstring(scanResult.InfectedCount);
+    text += L" errors=";
+    text += std::to_wstring(scanResult.ErrorCount);
+    OutputDebugStringW((text + L"\r\n").c_str());
+}
+
+void ServiceApiState::SetAntivirusDatabaseStatusLocked(const std::wstring& status)
+{
+    const Antivirus::AvDatabaseInfo info = m_avDatabase.GetInfo();
+    m_avDatabase.SetLoadMetadata(
+        info.Source,
+        info.LastSuccessfulLoadUtc != std::chrono::system_clock::time_point{}
+            ? info.LastSuccessfulLoadUtc
+            : std::chrono::system_clock::now(),
+        status,
+        info.VerifierName,
+        info.SkippedRecordCount,
+        info.LastManifestVerifiedUtc);
+    m_avDatabase.SetRuntimeFeatureStatus(kEnableScheduledFixedDriveScan, false);
 }
 
 // Возвращает безопасное состояние текущей лицензии без обращения к клиенту.

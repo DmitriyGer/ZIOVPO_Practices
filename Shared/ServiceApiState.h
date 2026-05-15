@@ -1,9 +1,12 @@
 #pragma once
 
+#include "AntivirusDatabase.h"
+#include "AntivirusScanner.h"
 #include "ApiClient.h"
 #include "InMemorySession.h"
 #include "RpcContract.h"
 
+#include <chrono>
 #include <mutex>
 #include <string>
 
@@ -45,8 +48,35 @@ public:
     // Выполняет периодическое обновление токенов и лицензионного тикета.
     void Tick();
 
+    // Returns current in-memory antivirus database metadata.
+    Antivirus::AvDatabaseInfo GetAntivirusDatabaseInfo();
+
+    // Scans one selected file through the antivirus engine.
+    TrayRpcStatusCode ScanFile(const std::wstring& path, TrayRpcAvFileScanResult* scanResult);
+
+    // Recursively scans one selected directory through the antivirus engine.
+    TrayRpcStatusCode ScanDirectory(const std::wstring& path, TrayRpcAvDirectoryScanResult* scanResult);
+
+    // Scans all local fixed drives through the antivirus engine.
+    TrayRpcStatusCode ScanFixedDrives(TrayRpcAvDirectoryScanResult* scanResult);
+
+    // Returns antivirus database metadata for RPC callers.
+    TrayRpcStatusCode GetAvDatabaseInfo(TrayRpcAvDatabaseInfo* databaseInfo);
+
 private:
     ServiceApiState();
+
+    // Loads signed antivirus records from disk with backup/default fallback.
+    void LoadAntivirusDatabaseLocked();
+
+    // Installs a pending database update from disk without holding the scan mutex during I/O.
+    bool TryInstallPendingAntivirusDatabase();
+
+    // Runs the optional scheduled fixed-drive scan over a database snapshot.
+    void RunScheduledFixedDriveScan();
+
+    // Records a database update status message in current database metadata.
+    void SetAntivirusDatabaseStatusLocked(const std::wstring& status);
 
     // Возвращает безопасное состояние текущей лицензии без обращения к клиенту.
     TrayRpcStatusCode EnsureLicenseForAntivirusOperationLocked();
@@ -90,6 +120,7 @@ private:
     std::mutex m_mutex;
     ApiIntegration::ApiClient m_apiClient;
     ApiIntegration::InMemorySession m_session;
+    Antivirus::InMemoryAvDatabase m_avDatabase;
 
     bool m_initialized = false;
     bool m_authenticated = false;
@@ -101,4 +132,9 @@ private:
     std::wstring m_lastActivationKey;
 
     bool m_licenseTasksRunning = false;
+    std::chrono::system_clock::time_point m_nextDatabaseUpdateCheckUtc = {};
+    std::chrono::system_clock::time_point m_nextFixedDriveScanUtc = {};
+    bool m_databaseUpdateRunning = false;
+    bool m_fixedDriveScanRunning = false;
+    Antivirus::AvDirectoryScanResult m_lastScheduledScanResult;
 };

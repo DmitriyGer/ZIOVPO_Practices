@@ -21,7 +21,7 @@ namespace
     constexpr DWORD kGuiTerminationTimeoutMs = 5000;
     constexpr DWORD kLaunchRetryIntervalMs = 5000;
     constexpr bool kAllowAdministratorsToTerminateProcesses = false;
-    constexpr bool kDenyServiceStopForAdministrators = true;
+    constexpr bool kDenyServiceStopForAdministrators = false;
     constexpr bool kRestrictServiceSecurityWritesForAdministrators = false;
 
     void LogHardeningContinueWarning(const wchar_t* stepName)
@@ -79,9 +79,12 @@ namespace
         g_serviceStatus.dwWin32ExitCode = win32ExitCode;
         g_serviceStatus.dwWaitHint = waitHint;
 
-        if (currentState == SERVICE_RUNNING)
+       if (currentState == SERVICE_RUNNING)
         {
-            g_serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_SESSIONCHANGE;
+            g_serviceStatus.dwControlsAccepted =
+                SERVICE_ACCEPT_STOP |
+                SERVICE_ACCEPT_SHUTDOWN |
+                SERVICE_ACCEPT_SESSIONCHANGE;
         }
         else
         {
@@ -169,7 +172,13 @@ DWORD WINAPI ServiceCtrlHandlerEx(
 
     case SERVICE_CONTROL_STOP:
     case SERVICE_CONTROL_SHUTDOWN:
-        return ERROR_CALL_NOT_IMPLEMENTED;
+        if (g_stopRequestedEvent == nullptr)
+        {
+            return ERROR_INVALID_HANDLE;
+        }
+
+        ReportServiceStatus(SERVICE_STOP_PENDING, NO_ERROR, 5000);
+        return SetEvent(g_stopRequestedEvent) ? NO_ERROR : GetLastError();
 
     case SERVICE_CONTROL_SESSIONCHANGE:
         if (eventType == WTS_SESSION_LOGON && eventData != nullptr)

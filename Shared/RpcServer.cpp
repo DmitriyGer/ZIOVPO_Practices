@@ -337,6 +337,72 @@ extern "C" TrayRpcStatusCode ActivateProduct(
     }
 }
 
+extern "C" TrayRpcStatusCode ScanFile(
+    handle_t /*hBinding*/,
+    wchar_t* path,
+    TrayRpcAvFileScanResult* scanResult)
+{
+    // Scans one selected file through the service antivirus engine.
+    const std::wstring pathValue = path != nullptr ? path : L"";
+
+    try
+    {
+        return ServiceApiState::Instance().ScanFile(pathValue, scanResult);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode ScanDirectory(
+    handle_t /*hBinding*/,
+    wchar_t* path,
+    TrayRpcAvDirectoryScanResult* scanResult)
+{
+    // Recursively scans one selected directory through the service antivirus engine.
+    const std::wstring pathValue = path != nullptr ? path : L"";
+
+    try
+    {
+        return ServiceApiState::Instance().ScanDirectory(pathValue, scanResult);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode ScanFixedDrives(
+    handle_t /*hBinding*/,
+    TrayRpcAvDirectoryScanResult* scanResult)
+{
+    // Scans all fixed local drives through the service antivirus engine.
+    try
+    {
+        return ServiceApiState::Instance().ScanFixedDrives(scanResult);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
+extern "C" TrayRpcStatusCode GetAvDatabaseInfo(
+    handle_t /*hBinding*/,
+    TrayRpcAvDatabaseInfo* databaseInfo)
+{
+    // Returns service-side in-memory antivirus database metadata.
+    try
+    {
+        return ServiceApiState::Instance().GetAvDatabaseInfo(databaseInfo);
+    }
+    catch (...)
+    {
+        return TRAY_RPC_SERVER_ERROR;
+    }
+}
+
 extern "C" void* __RPC_USER midl_user_allocate(size_t size)
 {
     return malloc(size);

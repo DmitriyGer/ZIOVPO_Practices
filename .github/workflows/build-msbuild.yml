@@ -15,6 +15,15 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore .NET tools
+        shell: pwsh
+        run: dotnet tool restore
+
       - name: Locate solution
         id: solution
         shell: pwsh
@@ -31,6 +40,10 @@ jobs:
         shell: pwsh
         run: |
           $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+          if (Test-Path -LiteralPath $outDir) {
+            Remove-Item -LiteralPath $outDir -Recurse -Force
+          }
+
           New-Item -Path $outDir -ItemType Directory -Force | Out-Null
 
           msbuild "${{ steps.solution.outputs.path }}" `
@@ -43,12 +56,42 @@ jobs:
             /p:WindowsTargetPlatformVersion=10.0 `
             /p:OutDir="$outDir\"
 
-      - name: Collect artifacts
+      - name: Run non-admin tests
         shell: pwsh
         run: |
-          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts"
           $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
-          New-Item -Path $artifactDir -ItemType Directory -Force | Out-Null
+          $testsExe = Join-Path $outDir "AntivirusEngineTests.exe"
+
+          if (-not (Test-Path $testsExe)) {
+            throw "AntivirusEngineTests.exe not found after build."
+          }
+
+          & $testsExe
+          if ($LASTEXITCODE -ne 0) {
+            throw "AntivirusEngineTests.exe failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+
+          msbuild "$env:GITHUB_WORKSPACE\Installer\TrayInstaller.wixproj" `
+            /m `
+            /nologo `
+            /verbosity:minimal `
+            /t:Build `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:ProductVersion=1.0.${{ github.run_number }} `
+            /p:AppBuildOutputDir="$outDir"
+
+      - name: List and verify installer outputs
+        shell: pwsh
+        run: |
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+          $installerOutDir = Join-Path $env:GITHUB_WORKSPACE "Installer\artifacts\Release\x64\output"
+          $bundleEnabled = Test-Path -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "Installer\Bundle.wxs")
 
           $trayApp = Join-Path $outDir "TrayApp.exe"
           $trayService = Join-Path $outDir "TrayService.exe"
@@ -61,12 +104,92 @@ jobs:
             throw "TrayService.exe not found after build."
           }
 
-          Copy-Item -Path $trayApp -Destination (Join-Path $artifactDir "TrayApp.exe") -Force
-          Copy-Item -Path $trayService -Destination (Join-Path $artifactDir "TrayService.exe") -Force
+          if (-not (Test-Path -LiteralPath $installerOutDir)) {
+            throw "Installer output directory not found: $installerOutDir"
+          }
 
-      - name: Upload artifacts
+          $outputFiles = Get-ChildItem -LiteralPath $installerOutDir -File -ErrorAction Stop | Sort-Object Name
+          $installerMsi = $outputFiles | Where-Object { $_.Extension -eq ".msi" }
+          $installerBundle = $outputFiles | Where-Object { $_.Extension -eq ".exe" }
+
+          Write-Host "Installer outputs in $installerOutDir"
+          $outputFiles | ForEach-Object {
+            Write-Host (" - {0} ({1} bytes)" -f $_.Name, $_.Length)
+          }
+
+          if ($installerMsi.Count -ne 1) {
+            throw "Expected exactly one MSI output, found $($installerMsi.Count)."
+          }
+
+          if ($bundleEnabled -and $installerBundle.Count -ne 1) {
+            throw "Expected exactly one bundle EXE output, found $($installerBundle.Count)."
+          }
+
+          if (-not $bundleEnabled -and $installerBundle.Count -ne 0) {
+            throw "Bundle is disabled, but EXE outputs were found in installer output."
+          }
+
+      - name: Stage raw app artifacts
+        shell: pwsh
+        run: |
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "out"
+          $appArtifactDir = Join-Path $env:GITHUB_WORKSPACE "ci-artifacts\app-x64"
+          if (Test-Path -LiteralPath $appArtifactDir) {
+            Remove-Item -LiteralPath $appArtifactDir -Recurse -Force
+          }
+
+          New-Item -Path $appArtifactDir -ItemType Directory -Force | Out-Null
+          Copy-Item -LiteralPath (Join-Path $outDir "TrayApp.exe") -Destination (Join-Path $appArtifactDir "TrayApp.exe")
+          Copy-Item -LiteralPath (Join-Path $outDir "TrayService.exe") -Destination (Join-Path $appArtifactDir "TrayService.exe")
+
+      - name: Stage installer artifacts
+        shell: pwsh
+        run: |
+          $installerOutDir = Join-Path $env:GITHUB_WORKSPACE "Installer\artifacts\Release\x64\output"
+          $installerArtifactDir = Join-Path $env:GITHUB_WORKSPACE "ci-artifacts\installer-x64"
+          $bundleEnabled = Test-Path -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "Installer\Bundle.wxs")
+          $msiFile = Get-ChildItem -LiteralPath $installerOutDir -Filter *.msi -File | Select-Object -First 1
+          $bundleFile = Get-ChildItem -LiteralPath $installerOutDir -Filter *.exe -File | Select-Object -First 1
+
+          if (Test-Path -LiteralPath $installerArtifactDir) {
+            Remove-Item -LiteralPath $installerArtifactDir -Recurse -Force
+          }
+
+          New-Item -Path $installerArtifactDir -ItemType Directory -Force | Out-Null
+          Copy-Item -LiteralPath $msiFile.FullName -Destination (Join-Path $installerArtifactDir $msiFile.Name)
+
+          $expectedNames = @($msiFile.Name)
+          if ($bundleEnabled) {
+            Copy-Item -LiteralPath $bundleFile.FullName -Destination (Join-Path $installerArtifactDir $bundleFile.Name)
+            $expectedNames += $bundleFile.Name
+          }
+
+          $artifactFiles = Get-ChildItem -LiteralPath $installerArtifactDir -File | Sort-Object Name
+          $unexpected = $artifactFiles | Where-Object { $_.Name -notin $expectedNames }
+
+          Write-Host "Installer artifact contents"
+          $artifactFiles | ForEach-Object {
+            Write-Host (" - {0} ({1} bytes)" -f $_.Name, $_.Length)
+          }
+
+          if ($artifactFiles.Count -ne $expectedNames.Count) {
+            throw "Installer artifact contains an unexpected number of files."
+          }
+
+          if ($unexpected) {
+            throw "Installer artifact contains unexpected files: $($unexpected.Name -join ', ')"
+          }
+
+      - name: Upload raw app artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: trayapp-release-x64
-          path: artifacts/
+          name: ziovpo-antivirus-app-x64
+          path: ci-artifacts/app-x64/
+          if-no-files-found: error
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ziovpo-antivirus-installer-x64
+          path: ci-artifacts/installer-x64/
           if-no-files-found: error
